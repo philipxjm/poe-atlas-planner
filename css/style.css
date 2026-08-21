@@ -8,6 +8,7 @@
   --gold: #ffd76b;
   --teal: #3fd0c9;
   --red: #d05a5a;
+  --magenta: #ff6ad5;
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -67,6 +68,37 @@ button {
 }
 button:hover { border-color: var(--amber); }
 button.primary { color: var(--gold); border-color: var(--amber); }
+/* the bonuses panel is closed by default, so a search hitting a line inside it
+   has to announce itself on the button */
+button.match { color: var(--magenta); border-color: var(--magenta); }
+
+#search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: -4px;
+}
+#search {
+  width: 220px;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 11px;
+  outline: none;
+}
+#search::placeholder { color: #5d6874; }
+#search:focus { border-color: var(--magenta); }
+#search::-webkit-search-cancel-button { filter: invert(0.6); cursor: pointer; }
+#search-n {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--magenta);
+  min-width: 44px;
+}
+#search-n.none { color: var(--dim); }
 
 #tree { flex: 1; width: 100%; cursor: grab; touch-action: none; }
 #tree:active { cursor: grabbing; }
@@ -129,6 +161,12 @@ button.primary { color: var(--gold); border-color: var(--amber); }
   border-bottom: 1px solid rgba(43, 51, 62, 0.5);
 }
 #panel .stat.dim { color: var(--dim); }
+#panel .stat.hit {
+  color: var(--magenta);
+  background: rgba(255, 106, 213, 0.09);
+  box-shadow: inset 2px 0 0 var(--magenta);
+  padding-left: 8px;
+}
 
 #key {
   position: fixed;
@@ -219,5 +257,6 @@ button.primary { color: var(--gold); border-color: var(--amber); }
 .sw.wormhole { background: #6d5a91; }
 .sw.travel { background: #2e363e; }
 .sw.blocked { background: #8a3232; }
+.sw.search { background: var(--magenta); }
 #legend b { color: var(--text); font-weight: 500; }
 #legend .dim { margin-left: auto; }

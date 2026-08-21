@@ -1,5 +1,6 @@
 import { buildTree } from "./tree.js";
 import { CATEGORY_COLOR, nodeColor, categoryColor } from "./palette.js";
+import { parseQuery, scoreFields, MISS } from "./fuzzy.js";
 
 const canvas = document.getElementById("tree");
 const ctx = canvas.getContext("2d");
@@ -10,6 +11,8 @@ const toastEl = document.getElementById("toast");
 const panelEl = document.getElementById("panel");
 const panelBody = document.getElementById("panel-body");
 const bonusBtn = document.getElementById("bonuses");
+const searchEl = document.getElementById("search");
+const searchNEl = document.getElementById("search-n");
 
 let T = null;
 let view = { s: 0.1, x: 0, y: 0 };
@@ -23,6 +26,10 @@ let result = { nodes: new Set(), points: 0, optimal: null, unreachable: new Set(
 let worker = null;
 let solveSeq = 0;
 let edges = [];            // {a, b, gate} precomputed once
+let searchTerms = null;    // parsed query, or null when the box is empty
+let searchHits = [];       // matching node ids, best score first
+const searchSet = new Set();
+let searchAt = -1;         // index into searchHits while cycling with Enter
 
 // Node fills come from palette.js (mechanic + rank); these are the states that
 // override it, plus the chrome.
@@ -40,6 +47,10 @@ const COLORS = {
   mastery: "#242b34",
   masteryLine: "#3a444f",
   highlight: "#ffd76b",
+  // Search has to be legible on top of every other state, so it takes the one hue
+  // nothing else uses. Gold is picked, teal is the path, red is blocked.
+  search: "#ff6ad5",
+  searchRGB: "255, 106, 213",
 };
 const RADII = { root: 90, keystone: 70, notable: 52, wormhole: 55, small: 32 };
 
@@ -67,6 +78,8 @@ fetch("data/atlas.json")
     readHash();
     buildPickGrid();
     buildKey();
+    buildHaystacks();
+    if (searchEl.value) runSearch(searchEl.value); // survives a reload with text in the box
     if (picked.size) solveNow();
     draw();
     updateHud();
@@ -146,13 +159,134 @@ function updateHud() {
   }
 }
 
+// ---------------------------------------------------------------- search
+
+// One lowercase haystack per node, built once. A node matches if every term in
+// the query hits one of these — not necessarily the same one, which is what lets
+// "breach pack" find a Breach node whose stat line mentions pack size.
+const haystacks = new Map();
+
+function buildHaystacks() {
+  for (const n of T.list) {
+    const f = [n.name.toLowerCase()];
+    if (n.category) f.push(n.category.toLowerCase());
+    // How people describe a node out loud, which is rarely how the data spells it.
+    f.push(n.type === "wormhole" ? "gateway wormhole" : n.type);
+    for (const s of n.stats) {
+      if (/^Connects to /.test(s)) continue; // gateway plumbing, not a bonus
+      f.push(s.toLowerCase());
+    }
+    haystacks.set(n.id, f);
+  }
+}
+
+function runSearch(q) {
+  if (!T) return;
+  searchTerms = parseQuery(q);
+  searchSet.clear();
+  searchHits = [];
+  searchAt = -1;
+  if (searchTerms) {
+    const scored = [];
+    for (const n of T.list) {
+      const s = scoreFields(searchTerms, haystacks.get(n.id));
+      if (s !== MISS) scored.push([s, n.id]);
+    }
+    scored.sort((a, b) => b[0] - a[0]);
+    for (const [, id] of scored) { searchHits.push(id); searchSet.add(id); }
+  }
+  updateSearchHud();
+  renderBonuses();
+  pulseLoop();
+  draw();
+}
+
+function updateSearchHud() {
+  if (!searchTerms) { searchNEl.textContent = ""; searchNEl.className = ""; return; }
+  if (!searchHits.length) { searchNEl.textContent = "none"; searchNEl.className = "none"; return; }
+  searchNEl.textContent = searchAt >= 0 ? `${searchAt + 1}/${searchHits.length}` : `${searchHits.length}`;
+  searchNEl.className = "";
+}
+
+// Enter walks the matches best-first, centring each one. Matches are frequently
+// off-screen — the atlas is far wider than any useful zoom — so a count alone
+// would be telling you something you cannot go and look at.
+function gotoMatch(step) {
+  if (!searchHits.length) return;
+  const len = searchHits.length;
+  // -1 means "nowhere yet", which is a position before the first match rather than
+  // one of them: stepping forward from it lands on the first, back on the last.
+  searchAt = searchAt < 0 ? (step > 0 ? 0 : len - 1) : (searchAt + step + len) % len;
+  const n = T.nodes.get(searchHits[searchAt]);
+  const s = Math.max(view.s, 0.4);
+  view.x = canvas.clientWidth / 2 - n.x * s;
+  view.y = canvas.clientHeight / 2 - n.y * s;
+  view.s = s;
+  updateSearchHud();
+  draw();
+}
+
+// The match rings breathe, which is what makes them findable when the query lights
+// up a node on the far side of the atlas. Only runs while a search is live, and at
+// half frame rate — the pulse reads the same and a full redraw is not free.
+let pulseRAF = 0;
+let pulseLast = 0;
+function pulseLoop() {
+  if (searchSet.size && !pulseRAF) {
+    const tick = (ts) => {
+      pulseRAF = requestAnimationFrame(tick);
+      if (ts - pulseLast < 33) return;
+      pulseLast = ts;
+      draw();
+    };
+    pulseRAF = requestAnimationFrame(tick);
+  } else if (!searchSet.size && pulseRAF) {
+    cancelAnimationFrame(pulseRAF);
+    pulseRAF = 0;
+  }
+}
+
+function pulse() {
+  return 0.5 + 0.5 * Math.sin(performance.now() / 420);
+}
+
+searchEl.addEventListener("input", () => runSearch(searchEl.value));
+searchEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); }
+  else if (e.key === "Escape") { searchEl.value = ""; runSearch(""); searchEl.blur(); }
+});
+
+// The tree is a canvas, so the browser's own find is useless here — taking Ctrl+F
+// costs nothing and is what anyone will reach for first.
+window.addEventListener("keydown", (e) => {
+  if (e.target === searchEl) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.key === "/" || ((e.ctrlKey || e.metaKey) && e.key === "f")) {
+    e.preventDefault();
+    searchEl.focus();
+    searchEl.select();
+  }
+});
+
 // ---------------------------------------------------------------- bonuses panel
 
 function renderBonuses() {
   const lines = aggregateStats(result.nodes);
-  bonusBtn.textContent = `Bonuses (${lines.length})`;
+  // The panel aggregates stats across the whole path, so its lines are summed
+  // rewrites of the node text and have to be matched in their own right. Here a
+  // line is a hit only if the whole query lands in that one line.
+  let hits = 0;
+  const html = lines.map((l) => {
+    const hit = searchTerms && scoreFields(searchTerms, [l.toLowerCase()]) !== MISS;
+    if (hit) hits++;
+    return `<div class="stat${hit ? " hit" : ""}">${esc(l)}</div>`;
+  }).join("");
+  bonusBtn.textContent = searchTerms && lines.length
+    ? `Bonuses (${hits} of ${lines.length})`
+    : `Bonuses (${lines.length})`;
+  bonusBtn.classList.toggle("match", hits > 0);
   panelBody.innerHTML = lines.length
-    ? lines.map((l) => `<div class="stat">${esc(l)}</div>`).join("")
+    ? html
     : `<div class="stat dim">No path computed — pick nodes and press Find Path.</div>`;
 }
 
@@ -419,6 +553,37 @@ function draw() {
     }
   }
 
+  // search matches: a breathing magenta ring, under the picked markers so a node
+  // that is both still reads as picked. The node keeps its own fill — search says
+  // "here", it does not restate what the node is.
+  if (searchSet.size) {
+    const t = pulse();
+    const searchMinR = 20 / view.s;
+    for (const id of searchSet) {
+      const n = T.nodes.get(id);
+      const r = Math.max(RADII[n.type] + 22, searchMinR) * (1 + 0.10 * t);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 1.9, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${COLORS.searchRGB}, ${(0.05 + 0.06 * t).toFixed(3)})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(9, 3.5 / view.s);
+      ctx.strokeStyle = COLORS.search;
+      ctx.stroke();
+    }
+    // the one Enter last walked to, called out from the rest of the set
+    if (searchAt >= 0) {
+      const n = T.nodes.get(searchHits[searchAt]);
+      const r = Math.max(RADII[n.type] + 22, searchMinR) * (1 + 0.10 * t) * 1.42;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(7, 2.5 / view.s);
+      ctx.strokeStyle = "#ffd0f0";
+      ctx.stroke();
+    }
+  }
+
   // picked markers on top: glow + ring with a minimum on-screen size so
   // selections stay obvious even fully zoomed out
   const minR = 16 / view.s;
@@ -506,10 +671,17 @@ function drawLabels() {
   // Build the candidate list, most important first.
   const inPath = (id) => !stale && result.nodes.has(id);
   const cands = [];
+  // A search that matches a handful of nodes should name them even where they are
+  // smalls, since that is the whole point of asking. Past that many the names stop
+  // being readable anyway and would crowd out every label that was already there.
+  const nameSmalls = searchSet.size > 0 && searchSet.size <= 60;
   for (const n of T.list) {
-    if (n.type === "small" || n.type === "root") continue;
+    const hit = searchSet.has(n.id);
+    if (n.type === "root") continue;
+    if (n.type === "small" && !(hit && nameSmalls)) continue;
     const rank =
       hover === n ? 0
+      : hit ? 0.4
       : picked.has(n.id) ? 1
       : inPath(n.id) ? 2
       : n.type === "keystone" ? 3
@@ -517,7 +689,9 @@ function drawLabels() {
       : 6;
     cands.push({ rank, text: n.name, font: LABEL_FONT, r: RADII[n.type] * view.s,
                  sx: n.x * view.s + view.x, sy: n.y * view.s + view.y,
-                 color: picked.has(n.id) ? "#ffe9a8" : inPath(n.id) ? COLORS.path : COLORS.label });
+                 color: hit ? COLORS.search
+                        : picked.has(n.id) ? "#ffe9a8"
+                        : inPath(n.id) ? COLORS.path : COLORS.label });
   }
   for (const m of T.masteries) {
     if (!m.name) continue;
@@ -768,6 +942,16 @@ window.__atlas = {
   get stale() { return stale; },
   get highlightName() { return highlightName; },
   get labels() { return lastLabels; },
+  get search() {
+    return {
+      terms: searchTerms,
+      hits: searchHits.slice(),
+      names: searchHits.map((id) => T.nodes.get(id).name),
+      at: searchAt,
+      animating: pulseRAF !== 0,
+    };
+  },
+  runSearch,
   screenPos(id) {
     const n = T.nodes.get(String(id));
     if (!n) return null;

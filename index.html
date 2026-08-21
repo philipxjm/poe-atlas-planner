@@ -16,6 +16,10 @@
   <div id="points">0 / 138 pts</div>
   <div id="status">loading tree…</div>
   <div class="spacer"></div>
+  <div id="search-wrap">
+    <input id="search" type="search" placeholder="Search nodes &amp; bonuses  /" autocomplete="off" spellcheck="false" aria-label="Search nodes and bonuses">
+    <span id="search-n"></span>
+  </div>
   <button id="solve" class="primary">Find Path</button>
   <button id="mechanics">Mechanics</button>
   <button id="bonuses">Bonuses (0)</button>
@@ -38,8 +42,9 @@
   <span><i class="sw blocked"></i>blocked</span>
   <span><i class="sw wormhole"></i>gateway</span>
   <span><i class="sw travel"></i>travel</span>
+  <span><i class="sw search"></i>search hit</span>
   <span>node colour = mechanic <b>(Mechanics for the key)</b></span>
-  <span class="dim">left-click pick · right-click block · click wheel-center: highlight clusters · Find Path to compute</span>
+  <span class="dim">left-click pick · right-click block · click wheel-center: highlight clusters · <b>/</b> search, <b>Enter</b> to walk matches</span>
 </footer>
 <script type="module" src="js/main.js"></script>
 </body>

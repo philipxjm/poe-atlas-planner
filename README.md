@@ -6,6 +6,9 @@ you want, and it computes the minimum-point connected tree that reaches all of t
 - **Left-click** a node to pick it (gold), then **Find Path** to solve for every pick at once.
 - **Right-click** a node to block it — the path must route around it. Right-click again to unblock.
 - **Drag** to pan, **wheel** to zoom, **Share link** copies a URL encoding your picks and blocks.
+- **Search** (`/` or ctrl-F) fuzzy-matches node names, mechanic names and stat text at once.
+  Matches take a magenta ring, **Enter** walks them best-first (shift-Enter backwards), and
+  any line of the computed bonuses the query hits lights up in the panel.
 - Every node is coloured by the mechanic its wheel belongs to, smalls included — dimmer
   for smalls, brighter for keystones, grey for travel nodes that belong to no mechanic.
   **Mechanics** opens the key; clicking a row (or a wheel centre) highlights those clusters.
@@ -18,6 +21,31 @@ names (hovered, picked, on-path, keystones) claim their spot first. A name with
 nowhere to go is dropped rather than drawn over its neighbour — hover it for the
 tooltip. `window.__atlas.labels` exposes the rects drawn last frame, which is how
 the overlap check is run against randomised viewports.
+
+Search is fuzzy in the fzf sense: the query has to appear as a subsequence, and the score
+rewards the match a human would have meant — contiguous, starting a word, early in the
+string. So `pcksz` finds Map Pack Size. Terms are split on whitespace and AND-ed, and each
+may land in a different field — name, mechanic, node kind, or any of its stat lines — which
+is what makes `breach pack` find the Breach node whose stat line mentions pack size, though
+those two words appear in that order nowhere on it.
+
+Being a subsequence is far too weak a bar on its own, and that is the one place this differs
+from a file finder. fzf searches filenames, where a match jumping between word starts (`mvc`
+for `ModelViewController`) is exactly what was meant, so the word-boundary bonus is allowed
+to pay for the gap. Half the corpus here is prose — "Breach monsters in your Maps have 10%
+increased…" — and in a sentence that long almost any six letters appear as a subsequence
+spread across six words. Typing `breach` lit up 310 nodes, a third of the tree, most of them
+nonsense. So `js/fuzzy.js` prices gaps steeply (2 per character, against a boundary bonus of
+10), and a term must also clear 60% of what it would score against a perfect target. That
+number is where the two populations separate: substring hits never fall below ~0.85 of ideal
+however deep in a line they sit, real acronym queries land around 0.76, and the sentence-wide
+coincidences sit below 0.55. `breach` is now 74 nodes, 41 of them the Breach wheels themselves.
+
+Nothing legitimate is lost to that: running all 33 mechanic names through it, every node a
+plain substring search would have found still matches, at every threshold tried. Common words
+stay common, though — "maps" really does appear in the text of 879 of the 903 nodes, and the
+highlight says so. A full sweep costs ~1ms, so it re-runs on every keystroke, and the rings
+breathe on a half-rate `requestAnimationFrame` that only spins while a search is live.
 
 The 33 mechanic colours live in `js/palette.js` and have two forms. `CATEGORY_COLOR` is the
 *identity* colour — vivid, used by the key swatches, the ring on a wheel centre and the
