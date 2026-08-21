@@ -40,6 +40,16 @@ exact optimum (Dreyfus–Wagner) for up to 10 picks — badged "✓ optimal" —
 greedy-insertion heuristic with randomized restarts and branch-reroute improvement
 beyond that. Blocked-off picks are reported as unreachable rather than silently dropped.
 
+Routes across a wheel are frequently *tied*: where a wheel has an inner and an outer
+ring, both reach the same notable in the same number of hops, so the tree costs the
+same either way. Cost cannot choose between them, and an arbitrary winner is often
+the one cutting across the middle — which looks like a detour even though it is not.
+So ties are broken towards staying on the ring you are already on. This only ever
+fires between candidates of equal distance, so it cannot change what a solve costs:
+over 200 random pick sets the tie-break left every cost identical, improved 21 and
+regressed none. To see it, pick Fecund Colony and Broken Border — 21 points either
+way, but the path now follows the wheel instead of dipping through its middle.
+
 Tree data is the official GGG export from
 [grindinggear/atlastree-export](https://github.com/grindinggear/atlastree-export)
 (vendored in `data/atlas.json`). To update for a new patch, replace that file with

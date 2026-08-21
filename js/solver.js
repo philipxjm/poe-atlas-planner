@@ -2,7 +2,7 @@
 // avoiding blocked nodes. Unit node costs make edge-count Steiner equivalent (tree: |V|-1 = |E|).
 // Exact Dreyfus-Wagner for <=10 picks, greedy insertion + random restarts + reroute passes beyond.
 
-let N = 0, offsets = null, neighbors = null, rootIdx = -1;
+let N = 0, offsets = null, neighbors = null, rootIdx = -1, ring = null;
 
 const INF = 0x3fffffff;
 
@@ -12,11 +12,25 @@ self.onmessage = (e) => {
     N = msg.n;
     offsets = msg.offsets;
     neighbors = msg.neighbors;
+    ring = msg.ring;
     rootIdx = msg.root;
     return;
   }
   if (msg.kind === "solve") solve(msg);
 };
+
+// Routes across a wheel are routinely tied: on a wheel with an inner and an outer
+// ring, both reach the same notable in the same number of hops, so the tree costs
+// the same either way. Cost alone can't choose, and the arbitrary winner is often
+// the one that cuts across the middle — which reads as a detour even though it is
+// not one. Prefer the parent that keeps us on the ring we are already on.
+//
+// This only ever fires between candidates of equal distance, so it cannot change
+// what a solve costs — only which of the equally-cheap answers gets shown.
+function prefer(v, cand, cur) {
+  if (cur < 0 || cand === cur) return false;
+  return ring[cand] === ring[v] && ring[cur] !== ring[v];
+}
 
 function solve({ seq, picks, blocked }) {
   const blockedMask = new Uint8Array(N);
@@ -88,7 +102,12 @@ function reachFromTree(treeSet, blockedMask, { target = -1, targetSet = null }) 
     if (u === target || (targetSet && targetSet.has(u) && dist[u] > 0)) { hit = u; break; }
     for (let i = offsets[u]; i < offsets[u + 1]; i++) {
       const v = neighbors[i];
-      if (blockedMask[v] || dist[v] !== INF) continue;
+      if (blockedMask[v]) continue;
+      if (dist[v] !== INF) {
+        // already reached; u is an equally-short way in, so it may be a nicer one
+        if (dist[v] === dist[u] + 1 && prefer(v, u, par[v])) par[v] = u;
+        continue;
+      }
       dist[v] = dist[u] + 1;
       par[v] = u;
       q[tail++] = v;
@@ -269,6 +288,11 @@ function dialRelax(d, pn, blockedMask) {
           d[u] = b + 1;
           pn[u] = v;
           if (b + 1 <= N) push(u, b + 1);
+        } else if (b + 1 === d[u] && pn[u] !== -2 && prefer(u, v, pn[u])) {
+          // Same distance, prettier approach. pn[u] === -2 marks a subset merge,
+          // which carries the split this entry was built from — never overwrite
+          // that with a plain parent edge.
+          pn[u] = v;
         }
       }
     }

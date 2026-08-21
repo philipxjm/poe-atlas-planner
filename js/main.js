@@ -74,11 +74,17 @@ fetch("data/atlas.json")
 
 function initWorker() {
   worker = new Worker("js/solver.js");
+  // Which ring each node sits on, as one comparable number. Equal keys mean the
+  // two nodes are on the same wheel and the same orbit — the solver uses that to
+  // break ties towards routes that follow a ring instead of cutting across one.
+  const ring = new Int32Array(T.list.length);
+  T.list.forEach((n, i) => { ring[i] = n.group * 8 + n.orbit; });
   worker.postMessage({
     kind: "init",
     n: T.list.length,
     offsets: T.csr.offsets,
     neighbors: T.csr.neighbors,
+    ring,
     root: T.rootIndex,
   });
   worker.onmessage = (e) => {
