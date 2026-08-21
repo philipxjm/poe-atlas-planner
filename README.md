@@ -10,6 +10,13 @@ you want, and it computes the minimum-point connected tree that reaches all of t
   for smalls, brighter for keystones, grey for travel nodes that belong to no mechanic.
   **Mechanics** opens the key; clicking a row (or a wheel centre) highlights those clusters.
 
+Node names are laid out at a fixed on-screen size and collision-checked: each tries
+eight positions around its node, long names wrap to two lines, and higher-priority
+names (hovered, picked, on-path, keystones) claim their spot first. A name with
+nowhere to go is dropped rather than drawn over its neighbour — hover it for the
+tooltip. `window.__atlas.labels` exposes the rects drawn last frame, which is how
+the overlap check is run against randomised viewports.
+
 The 33 mechanic colours live in `js/palette.js`. Mechanics whose colour the game already
 established are pinned; the rest are solved for by `tools/gen-palette.mjs` so that no two
 wheels look alike while the palette stays inside the app's muted range. After any edit run
