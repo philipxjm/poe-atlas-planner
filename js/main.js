@@ -233,6 +233,12 @@ function buildPickGrid() {
   }
 }
 
+// Convert a pointer event's window coords to canvas-local coords.
+function canvasXY(e) {
+  const r = canvas.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top];
+}
+
 function nodeAt(px, py) {
   const wx = (px - view.x) / view.s;
   const wy = (py - view.y) / view.s;
@@ -272,7 +278,7 @@ canvas.addEventListener("pointermove", (e) => {
     }
     return;
   }
-  const n = nodeAt(e.clientX, e.clientY);
+  const n = nodeAt(...canvasXY(e));
   if (n !== hover) { hover = n; draw(); }
   if (n) showTooltip(n, e.clientX, e.clientY);
   else tooltip.style.display = "none";
@@ -281,7 +287,7 @@ canvas.addEventListener("pointermove", (e) => {
 canvas.addEventListener("pointerup", (e) => {
   dragging = false;
   if (moved) return;
-  const n = nodeAt(e.clientX, e.clientY);
+  const n = nodeAt(...canvasXY(e));
   if (!n) return;
   if (e.button === 0) {
     if (n.type === "root") return;
@@ -294,7 +300,7 @@ canvas.addEventListener("pointerup", (e) => {
 
 canvas.addEventListener("contextmenu", (e) => {
   e.preventDefault();
-  const n = nodeAt(e.clientX, e.clientY);
+  const n = nodeAt(...canvasXY(e));
   if (!n || n.type === "root") return;
   if (blockedIds.has(n.id)) blockedIds.delete(n.id);
   else { blockedIds.add(n.id); picked.delete(n.id); }
@@ -303,11 +309,12 @@ canvas.addEventListener("contextmenu", (e) => {
 
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
+  const [cx, cy] = canvasXY(e);
   const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
   const ns = Math.min(3, Math.max(0.02, view.s * f));
   const k = ns / view.s;
-  view.x = e.clientX - k * (e.clientX - view.x);
-  view.y = e.clientY - k * (e.clientY - view.y);
+  view.x = cx - k * (cx - view.x);
+  view.y = cy - k * (cy - view.y);
   view.s = ns;
   draw();
 }, { passive: false });
@@ -375,6 +382,8 @@ window.__atlas = {
   get result() { return result; },
   screenPos(id) {
     const n = T.nodes.get(String(id));
-    return n ? { x: n.x * view.s + view.x, y: n.y * view.s + view.y } : null;
+    if (!n) return null;
+    const r = canvas.getBoundingClientRect();
+    return { x: n.x * view.s + view.x + r.left, y: n.y * view.s + view.y + r.top };
   },
 };
