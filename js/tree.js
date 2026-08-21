@@ -2,6 +2,17 @@
 
 const ORBIT16 = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
 
+// GGG writes glossary links as [LookupKey|Display Text] (and [Term] when the key
+// and the text match). The client shows only the display half — so must we.
+function unlink(s) {
+  return String(s).replace(/\[([^\]|]+)(?:\|([^\]]+))?\]/g, (_, key, display) => display || key);
+}
+
+// stats / reminderText / flavourText are all arrays in the export.
+function lines(v) {
+  return v == null ? [] : (Array.isArray(v) ? v : [v]).flat(9).map(unlink);
+}
+
 export function buildTree(raw) {
   const { skillsPerOrbit, orbitRadii } = raw.constants;
   const groups = raw.groups;
@@ -32,7 +43,7 @@ export function buildTree(raw) {
     const a = (deg * Math.PI) / 180;
     if (n.isMastery) {
       masteries.push({
-        name: n.name || "",
+        name: unlink(n.name || ""),
         icon: n.icon || null,
         x: g.x + rad * Math.sin(a),
         y: g.y - rad * Math.cos(a),
@@ -48,11 +59,11 @@ export function buildTree(raw) {
       : "small";
     nodes.set(key, {
       id: key,
-      name: n.name || "Atlas Start",
+      name: unlink(n.name || "Atlas Start"),
       category: groupCategory.get(n.group) || null,
-      stats: n.stats || [],
-      flavour: n.flavourText || null,
-      reminder: n.reminderText || null,
+      stats: lines(n.stats),
+      flavour: lines(n.flavourText),
+      reminder: lines(n.reminderText),
       grantsPoints: n.grantedPassivePoints || 0,
       type,
       x: g.x + rad * Math.sin(a),

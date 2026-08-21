@@ -87,6 +87,11 @@ button.primary { color: var(--gold); border-color: var(--amber); }
 #tooltip b { color: var(--gold); }
 #tooltip i { color: var(--dim); }
 .tt-blocked { color: var(--red); font-weight: 600; }
+.tt-flavour {
+  color: #7d8894;
+  font-style: italic;
+  font-size: 0.78rem;
+}
 .tt-cat {
   font-size: 0.72rem;
   text-transform: uppercase;
