@@ -17,6 +17,7 @@
   <div id="status">loading tree…</div>
   <div class="spacer"></div>
   <button id="solve" class="primary">Find Path</button>
+  <button id="mechanics">Mechanics</button>
   <button id="bonuses">Bonuses (0)</button>
   <button id="fit">Fit</button>
   <button id="clear-picks">Clear picks</button>
@@ -24,6 +25,7 @@
   <button id="share">Share link</button>
 </header>
 <canvas id="tree"></canvas>
+<aside id="key" class="hidden"></aside>
 <aside id="panel" class="hidden">
   <h2>Atlas bonuses</h2>
   <div id="panel-body"></div>
@@ -33,10 +35,10 @@
 <footer id="legend">
   <span><i class="sw picked"></i>picked</span>
   <span><i class="sw path"></i>path</span>
-  <span><i class="sw notable"></i>notable</span>
-  <span><i class="sw keystone"></i>keystone</span>
-  <span><i class="sw wormhole"></i>gateway</span>
   <span><i class="sw blocked"></i>blocked</span>
+  <span><i class="sw wormhole"></i>gateway</span>
+  <span><i class="sw travel"></i>travel</span>
+  <span>node colour = mechanic <b>(Mechanics for the key)</b></span>
   <span class="dim">left-click pick · right-click block · click wheel-center: highlight clusters · Find Path to compute</span>
 </footer>
 <script type="module" src="js/main.js"></script>

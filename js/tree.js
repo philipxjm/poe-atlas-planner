@@ -13,6 +13,14 @@ export function buildTree(raw) {
 
   const masteries = []; // wheel-center markers: not allocatable, clickable for highlight
 
+  // group -> mechanic name (from the mastery marker each cluster carries)
+  const groupCategory = new Map();
+  for (const n of Object.values(raw.nodes)) {
+    if (n && typeof n === "object" && n.isMastery && n.name) {
+      groupCategory.set(n.group, n.name);
+    }
+  }
+
   for (const [key, n] of Object.entries(raw.nodes)) {
     if (!n || typeof n !== "object") continue;
     if (key === "root") continue;
@@ -41,6 +49,7 @@ export function buildTree(raw) {
     nodes.set(key, {
       id: key,
       name: n.name || "Atlas Start",
+      category: groupCategory.get(n.group) || null,
       stats: n.stats || [],
       flavour: n.flavourText || null,
       reminder: n.reminderText || null,
