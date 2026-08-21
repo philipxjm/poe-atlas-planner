@@ -73,7 +73,8 @@ fetch("data/atlas.json")
   });
 
 function initWorker() {
-  worker = new Worker("js/solver.js");
+  // A module worker: the solver imports its exact phase from steiner-exact.js.
+  worker = new Worker("js/solver.js", { type: "module" });
   // Which ring each node sits on, as one comparable number. Equal keys mean the
   // two nodes are on the same wheel and the same orbit — the solver uses that to
   // break ties towards routes that follow a ring instead of cutting across one.

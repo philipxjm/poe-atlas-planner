@@ -1,10 +1,22 @@
 // Steiner-tree solver worker: minimum-point connected subtree containing root + all picks,
 // avoiding blocked nodes. Unit node costs make edge-count Steiner equivalent (tree: |V|-1 = |E|).
-// Exact Dreyfus-Wagner for <=10 picks, greedy insertion + random restarts + reroute passes beyond.
+//
+// Every answer is exact, at any number of picks, via the tree-decomposition DP in
+// steiner-exact.js. A greedy heuristic still runs first, because it lands in a few
+// milliseconds and gives the user something on screen while the real solve runs;
+// Dreyfus-Wagner is kept as a fallback for the small cases if the decomposition
+// ever comes up short.
+
+import { buildDecomposition, solveExact } from "./steiner-exact.js";
 
 let N = 0, offsets = null, neighbors = null, rootIdx = -1, ring = null;
 
 const INF = 0x3fffffff;
+
+// How long the exact solve gets before we keep the heuristic answer instead.
+// Measured worst case on the full atlas is well under a second, so this is a
+// backstop against a pathological blocked set, not a working budget.
+const EXACT_BUDGET_MS = 5000;
 
 self.onmessage = (e) => {
   const msg = e.data;
@@ -45,8 +57,33 @@ function solve({ seq, picks, blocked }) {
     return;
   }
 
-  // Fast phase: nearest-insertion greedy + shuffled restarts + reroute improvement.
+  // Fast phase: one nearest-insertion greedy pass with reroute improvement. It
+  // lands in a few milliseconds, so the user gets a shape on screen immediately.
+  // No restarts here — the exact answer is about to replace this one anyway, and
+  // 40 restarts would add a couple hundred milliseconds to every single solve.
   let best = improve(greedy(terminals, blockedMask, null), terminals, blockedMask);
+  post(seq, [...best], best.size - 1, null, unreachable);
+
+  // Exact phase. Take its tree even when the sizes tie: it costs the same and it
+  // has the ring tie-break baked into its edge weights, so it is the nicer one.
+  const exact = exactTree(terminals, blocked, blockedMask);
+  if (exact) {
+    if (exact.size <= best.size) best = exact;
+    post(seq, [...best], best.size - 1, true, unreachable);
+    return;
+  }
+
+  // No decomposition, or it ran out of time. Dreyfus-Wagner still covers the small
+  // cases exactly.
+  if (terminals.length - 1 <= 10) {
+    const dw = dreyfusWagner(terminals, blockedMask);
+    if (dw && dw.size < best.size) best = dw;
+    post(seq, [...best], best.size - 1, true, unreachable);
+    return;
+  }
+
+  // Past that the heuristic is all we have, so now its quality is worth paying
+  // for: restart it from shuffled insertion orders and keep the best.
   const t0 = Date.now();
   let rng = (0x9e3779b9 ^ (terminals.length * 2654435761)) >>> 0;
   for (let tries = 0; tries < 40 && Date.now() - t0 < 250; tries++) {
@@ -54,14 +91,32 @@ function solve({ seq, picks, blocked }) {
     const cand = improve(greedy(terminals, blockedMask, rng), terminals, blockedMask);
     if (cand.size < best.size) best = cand;
   }
-  const exactEligible = terminals.length - 1 <= 10;
-  post(seq, [...best], best.size - 1, !exactEligible ? false : null, unreachable);
+  post(seq, [...best], best.size - 1, false, unreachable);
+}
 
-  if (exactEligible) {
-    const exact = dreyfusWagner(terminals, blockedMask);
-    if (exact && exact.size < best.size) best = exact;
-    post(seq, [...best], best.size - 1, true, unreachable);
+// --- Exact solve over a tree decomposition -----------------------------------
+
+// The decomposition depends only on which nodes are blocked, and blocking is rare
+// next to picking, so the last one is worth holding on to. A failed build is
+// cached too — if min-fill couldn't handle this graph it won't next time either.
+let tdCache = null, tdKey = null;
+
+function exactTree(terminals, blocked, blockedMask) {
+  const key = blocked.slice().sort((a, b) => a - b).join(",");
+  if (tdKey !== key) {
+    tdCache = buildDecomposition(N, offsets, neighbors, blockedMask, rootIdx);
+    tdKey = key;
   }
+  if (!tdCache) return null;
+
+  const terminalMask = new Uint8Array(N);
+  for (const t of terminals) terminalMask[t] = 1;
+  const res = solveExact(tdCache, terminalMask, Date.now() + EXACT_BUDGET_MS, ring);
+  if (!res) return null;
+
+  const set = new Set([rootIdx]);
+  for (const [a, b] of res.edges) { set.add(a); set.add(b); }
+  return set;
 }
 
 function post(seq, nodesArr, points, optimal, unreachable) {
