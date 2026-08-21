@@ -59,7 +59,7 @@ fetch("data/atlas.json")
       for (const o of n.adj) {
         if (o < n.id) continue;
         const b = T.nodes.get(o);
-        edges.push({ a: n, b, gate: n.type === "wormhole" && b.type === "wormhole" });
+        edges.push({ a: n, b, arc: arcBetween(n, b), gate: n.type === "wormhole" && b.type === "wormhole" });
       }
     }
     initWorker();
@@ -240,6 +240,34 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 
+// Two nodes on the same wheel and the same orbit are joined by an arc running
+// along that orbit — that is where the tree's curved links come from. Anything
+// else (across wheels, or hopping orbits) is a straight line.
+//
+// Node angles are measured from straight up, canvas angles from the +x axis,
+// hence the quarter-turn. The arc takes the short way round; a link spanning
+// more than a third of the wheel is drawn straight instead, because sweeping
+// most of the way around a wheel reads as a circle rather than a connection.
+const MAX_ARC = (2 * Math.PI) / 3;
+
+function arcBetween(a, b) {
+  if (a.group !== b.group || a.orbit !== b.orbit || !a.radius) return null;
+  let d = b.angle - a.angle;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d <= -Math.PI) d += 2 * Math.PI;
+  if (!d || Math.abs(d) > MAX_ARC) return null;
+  const from = a.angle - Math.PI / 2;
+  return { cx: a.gx, cy: a.gy, r: a.radius, from, to: from + d, ccw: d < 0 };
+}
+
+// Adds one edge to the current path. arc() would draw a line from the current
+// point to the arc's start, so we moveTo that start first — it is exactly a.x/a.y.
+function traceEdge(e) {
+  ctx.moveTo(e.a.x, e.a.y);
+  if (e.arc) ctx.arc(e.arc.cx, e.arc.cy, e.arc.r, e.arc.from, e.arc.to, e.arc.ccw);
+  else ctx.lineTo(e.b.x, e.b.y);
+}
+
 function draw() {
   if (!T) return;
   const dpr = window.devicePixelRatio || 1;
@@ -256,8 +284,7 @@ function draw() {
   ctx.beginPath();
   for (const e of edges) {
     if (e.gate) continue;
-    ctx.moveTo(e.a.x, e.a.y);
-    ctx.lineTo(e.b.x, e.b.y);
+    traceEdge(e);
   }
   ctx.stroke();
 
@@ -267,8 +294,7 @@ function draw() {
   ctx.beginPath();
   for (const e of edges) {
     if (e.gate || !inPath(e.a.id) || !inPath(e.b.id)) continue;
-    ctx.moveTo(e.a.x, e.a.y);
-    ctx.lineTo(e.b.x, e.b.y);
+    traceEdge(e);
   }
   ctx.stroke();
 

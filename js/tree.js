@@ -68,6 +68,14 @@ export function buildTree(raw) {
       type,
       x: g.x + rad * Math.sin(a),
       y: g.y - rad * Math.cos(a),
+      // where this node sits on its wheel — two nodes sharing a group and an
+      // orbit are joined by an arc along that orbit, not a straight line
+      group: n.group,
+      orbit: n.orbit,
+      gx: g.x,
+      gy: g.y,
+      radius: rad,
+      angle: a,
       adj: new Set(),
     });
   }
