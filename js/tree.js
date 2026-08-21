@@ -1,0 +1,80 @@
+// Parse GGG atlastree-export data.json into a render/solve-ready graph.
+
+const ORBIT16 = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+
+export function buildTree(raw) {
+  const { skillsPerOrbit, orbitRadii } = raw.constants;
+  const groups = raw.groups;
+  const nodes = new Map(); // key -> node record
+
+  // The "root" entry is a positionless pseudo-node whose single edge names the real
+  // start marker; that marker is the free origin (its neighbors cost the 1st point).
+  const startKey = raw.nodes.root ? String((raw.nodes.root.out || [])[0]) : null;
+
+  for (const [key, n] of Object.entries(raw.nodes)) {
+    if (!n || typeof n !== "object") continue;
+    if (key === "root") continue;
+    if (n.isMastery) continue; // decorative wheel-center art, not allocatable
+    const g = groups[n.group];
+    if (!g) continue;
+    const per = skillsPerOrbit[n.orbit];
+    const rad = orbitRadii[n.orbit];
+    const deg = per === 16 ? ORBIT16[n.orbitIndex] : (360 * n.orbitIndex) / per;
+    const a = (deg * Math.PI) / 180;
+    const type =
+      key === startKey ? "root"
+      : n.isKeystone ? "keystone"
+      : n.isWormhole ? "wormhole"
+      : n.isNotable ? "notable"
+      : "small";
+    nodes.set(key, {
+      id: key,
+      name: n.name || "Atlas Start",
+      stats: n.stats || [],
+      flavour: n.flavourText || null,
+      reminder: n.reminderText || null,
+      grantsPoints: n.grantedPassivePoints || 0,
+      type,
+      x: g.x + rad * Math.sin(a),
+      y: g.y - rad * Math.cos(a),
+      adj: new Set(),
+    });
+  }
+
+  // Undirected adjacency: union of in/out, filtered to kept nodes.
+  for (const [key, n] of Object.entries(raw.nodes)) {
+    if (!nodes.has(key)) continue;
+    const rec = nodes.get(key);
+    for (const other of [...(n.out || []), ...(n.in || [])]) {
+      const ok = nodes.get(String(other));
+      if (!ok || ok === rec) continue;
+      rec.adj.add(String(other));
+      ok.adj.add(key);
+    }
+  }
+
+  // Compact index for the solver.
+  const list = [...nodes.values()];
+  const indexOf = new Map(list.map((n, i) => [n.id, i]));
+  const offsets = new Int32Array(list.length + 1);
+  let m = 0;
+  list.forEach((n, i) => { offsets[i] = m; m += n.adj.size; });
+  offsets[list.length] = m;
+  const neighbors = new Int32Array(m);
+  let w = 0;
+  for (const n of list) for (const o of n.adj) neighbors[w++] = indexOf.get(o);
+  // offsets currently store starts shifted; rebuild cleanly
+  let acc = 0;
+  list.forEach((n, i) => { offsets[i] = acc; acc += n.adj.size; });
+  offsets[list.length] = acc;
+
+  return {
+    nodes,
+    list,
+    indexOf,
+    csr: { offsets, neighbors },
+    rootIndex: indexOf.get(startKey),
+    bounds: { minX: raw.min_x, minY: raw.min_y, maxX: raw.max_x, maxY: raw.max_y },
+    totalPoints: raw.points.totalPoints,
+  };
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoE Atlas Planner — optimal pathing</title>
+<meta name="description" content="Path of Exile 3.29 atlas passive tree planner: pick the nodes you want, block the ones you don't, get the minimum-point tree computed for you.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="bar">
+  <h1>Atlas <span>Planner</span> <small>3.29</small></h1>
+  <div id="points">0 / 138 pts</div>
+  <div id="status">loading tree…</div>
+  <div class="spacer"></div>
+  <button id="fit">Fit</button>
+  <button id="clear-picks">Clear picks</button>
+  <button id="clear-blocks">Clear blocks</button>
+  <button id="share" class="primary">Share link</button>
+</header>
+<canvas id="tree"></canvas>
+<div id="tooltip"></div>
+<div id="toast"></div>
+<footer id="legend">
+  <span><i class="sw picked"></i>picked</span>
+  <span><i class="sw path"></i>path</span>
+  <span><i class="sw notable"></i>notable</span>
+  <span><i class="sw keystone"></i>keystone</span>
+  <span><i class="sw wormhole"></i>gateway</span>
+  <span><i class="sw blocked"></i>blocked</span>
+  <span class="dim">left-click pick · right-click block · drag pan · wheel zoom</span>
+</footer>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
