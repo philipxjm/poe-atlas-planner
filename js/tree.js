@@ -11,16 +11,26 @@ export function buildTree(raw) {
   // start marker; that marker is the free origin (its neighbors cost the 1st point).
   const startKey = raw.nodes.root ? String((raw.nodes.root.out || [])[0]) : null;
 
+  const masteries = []; // wheel-center markers: not allocatable, clickable for highlight
+
   for (const [key, n] of Object.entries(raw.nodes)) {
     if (!n || typeof n !== "object") continue;
     if (key === "root") continue;
-    if (n.isMastery) continue; // decorative wheel-center art, not allocatable
     const g = groups[n.group];
     if (!g) continue;
     const per = skillsPerOrbit[n.orbit];
     const rad = orbitRadii[n.orbit];
     const deg = per === 16 ? ORBIT16[n.orbitIndex] : (360 * n.orbitIndex) / per;
     const a = (deg * Math.PI) / 180;
+    if (n.isMastery) {
+      masteries.push({
+        name: n.name || "",
+        x: g.x + rad * Math.sin(a),
+        y: g.y - rad * Math.cos(a),
+        ringR: orbitRadii[Math.max(...(g.orbits && g.orbits.length ? g.orbits : [1]))] + 100,
+      });
+      continue;
+    }
     const type =
       key === startKey ? "root"
       : n.isKeystone ? "keystone"
@@ -71,6 +81,7 @@ export function buildTree(raw) {
   return {
     nodes,
     list,
+    masteries,
     indexOf,
     csr: { offsets, neighbors },
     rootIndex: indexOf.get(startKey),

@@ -88,6 +88,37 @@ button.primary { color: var(--gold); border-color: var(--amber); }
 #tooltip i { color: var(--dim); }
 .tt-blocked { color: var(--red); font-weight: 600; }
 
+#panel {
+  position: fixed;
+  top: 58px;
+  right: 12px;
+  bottom: 44px;
+  width: 330px;
+  background: rgba(22, 27, 34, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px;
+  overflow-y: auto;
+  z-index: 8;
+}
+#panel.hidden { display: none; }
+#panel h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--amber);
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
+#panel .stat {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(43, 51, 62, 0.5);
+}
+#panel .stat.dim { color: var(--dim); }
+
 #toast {
   position: fixed;
   bottom: 60px;
