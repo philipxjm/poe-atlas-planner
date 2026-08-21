@@ -25,6 +25,7 @@ export function buildTree(raw) {
     if (n.isMastery) {
       masteries.push({
         name: n.name || "",
+        icon: n.icon || null,
         x: g.x + rad * Math.sin(a),
         y: g.y - rad * Math.cos(a),
         ringR: orbitRadii[Math.max(...(g.orbits && g.orbits.length ? g.orbits : [1]))] + 100,

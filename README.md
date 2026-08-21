@@ -15,7 +15,8 @@ beyond that. Blocked-off picks are reported as unreachable rather than silently 
 Tree data is the official GGG export from
 [grindinggear/atlastree-export](https://github.com/grindinggear/atlastree-export)
 (vendored in `data/atlas.json`). To update for a new patch, replace that file with
-the new `data.json` from the repo.
+the new `data.json` from the repo, and refresh `img/mastery.png` from the sprite
+URL in its `sprites.mastery` section. Mechanic icon art © Grinding Gear Games.
 
 No build step, no dependencies — serve the directory statically:
 
