@@ -334,11 +334,13 @@ function draw() {
       ctx.fillStyle = COLORS.mastery;
       ctx.fill();
     }
-    // thin ring in the wheel's own colour: ties the icon to the nodes around it
+    // Thin ring tying the icon to the nodes around it. It takes the muted fill
+    // rather than the identity colour — there is one of these on every wheel, so
+    // at full chroma a hundred of them out-shout the actual selection.
     ctx.beginPath();
     ctx.arc(m.x, m.y, mSize / 2 + 6, 0, Math.PI * 2);
     ctx.lineWidth = Math.max(5, 2 / view.s);
-    ctx.strokeStyle = categoryColor(m.name);
+    ctx.strokeStyle = nodeColor(m.name, "keystone");
     ctx.stroke();
     if (m.name === highlightName || m === hoverMastery) {
       ctx.beginPath();

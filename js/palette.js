@@ -5,6 +5,10 @@
 // are solved for so no two wheels look alike. Don't hand-edit an entry without
 // rerunning tools/check-palette.mjs — the closest pair is only ΔE 19 apart, so
 // there is no slack for a stray nudge.
+//
+// These are the *identity* colours, used for chrome — the key swatches, the ring
+// around a mastery icon, the cluster highlight, the tooltip heading. What gets
+// painted into a node is the muted derivative below.
 
 export const CATEGORY_COLOR = {
   "Abyss":                "#6b4fc4",
@@ -45,33 +49,77 @@ export const CATEGORY_COLOR = {
 // Uncategorised nodes (travel lines, voidstone downsides, gateways).
 const NEUTRAL = { small: "#5a6673", notable: "#c9a35c", keystone: "#7fb8a8", wormhole: "#9a7fd0", root: "#e8ded0" };
 
-const BG = [0x12, 0x16, 0x1c];
+// A node you picked is gold (L* 87) and a node on the path is teal (L* 76). If
+// an ordinary Legion node is painted its identity cream (L* 90) it is *brighter*
+// than the selection, and the eye has nothing to lock onto. So the fills get
+// knocked back: chroma to 72%, lightness compressed into a band topping out at
+// L* 65. Every unselected node then sits at least ΔE 27 from every selection
+// colour, and the whole field reads as backdrop.
+//
+// The cost is real — the mechanics are ΔE 19 apart at identity and ~10 apart
+// once muted, so the wheels are harder to tell apart on colour alone. That is
+// what the Mechanics key and the vivid cluster rings are for.
+const MUTE = { chroma: 0.72, lo: 32, hi: 54 };
 
-function hex(c) {
-  return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
-}
-function toHex([r, g, b]) {
-  return "#" + [r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("");
-}
-function mix(a, b, t) {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+// Rank spread within a wheel, in L*: smalls sink, the keystone rises, so a
+// cluster reads as a gradient with its keystone on top — all in one hue.
+const RANK_DL = { small: -10, notable: 0, keystone: 11, wormhole: 4, root: 16 };
+const L_FLOOR = 21; // below this a node is indistinguishable from the background
+
+const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+const fi = (t) => (t ** 3 > 0.008856 ? t ** 3 : (t - 16 / 116) / 7.787);
+const s2l = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const l2s = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+
+function rgb2lab(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => s2l(parseInt(hex.slice(i, i + 2), 16) / 255));
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
 }
 
-// Rank shading: smalls sink toward the background so the wheel reads as a
-// gradient with its notables and keystone on top, all in the same hue.
-const SHADE = { small: -0.42, notable: 0, keystone: 0.3, wormhole: 0, root: 0 };
+function labRaw([L, A, B]) {
+  const fy = (L + 16) / 116, fx = fy + A / 500, fz = fy - B / 200;
+  const x = fi(fx) * 0.95047, y = fi(fy), z = fi(fz) * 1.08883;
+  return [
+    3.2406 * x - 1.5372 * y - 0.4986 * z,
+    -0.9689 * x + 1.8758 * y + 0.0415 * z,
+    0.0557 * x - 0.204 * y + 1.057 * z,
+  ].map((v) => l2s(v) * 255);
+}
+
+// A dark saturated colour can fall outside sRGB, and clipping it per-channel
+// bends the hue — a dim green lands on #00471b, which is not green any more.
+// Pull the chroma in until it fits instead: same hue, less punch.
+function lab2hex(lab) {
+  const fits = (t) => labRaw([lab[0], lab[1] * t, lab[2] * t]).every((v) => v >= -0.5 && v <= 255.5);
+  let t = 1;
+  if (!fits(1)) {
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 18; i++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
+    t = lo;
+  }
+  return "#" + labRaw([lab[0], lab[1] * t, lab[2] * t])
+    .map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0"))
+    .join("");
+}
 
 const cache = new Map();
 
 export function nodeColor(category, type) {
-  if (!category || !CATEGORY_COLOR[category]) return NEUTRAL[type] || NEUTRAL.small;
-  if (type === "wormhole" || type === "root") return NEUTRAL[type];
-  const key = category + "|" + type;
+  // Gateways and the atlas start belong to no wheel, so they keep their own hue.
+  const base = type === "wormhole" || type === "root"
+    ? NEUTRAL[type]
+    : CATEGORY_COLOR[category] || NEUTRAL[type] || NEUTRAL.small;
+  const key = base + "|" + type;
   let c = cache.get(key);
   if (c) return c;
-  const base = hex(CATEGORY_COLOR[category]);
-  const t = SHADE[type] || 0;
-  c = toHex(t < 0 ? mix(base, BG, -t) : mix(base, [255, 255, 255], t));
+  const [L, A, B] = rgb2lab(base);
+  // the generator keeps identity colours inside L* 46..90; map that onto the band
+  const t = Math.min(1, Math.max(0, (L - 46) / 44));
+  const Ln = MUTE.lo + t * (MUTE.hi - MUTE.lo) + (RANK_DL[type] || 0);
+  c = lab2hex([Math.max(L_FLOOR, Ln), A * MUTE.chroma, B * MUTE.chroma]);
   cache.set(key, c);
   return c;
 }

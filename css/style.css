@@ -209,11 +209,15 @@ button.primary { color: var(--gold); border-color: var(--amber); }
   border-radius: 50%;
   margin-right: 6px;
   vertical-align: -1px;
+  /* node fills are muted on purpose, so the dim ones need an edge to be seen
+     at 11px against the bar */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 .sw.picked { background: var(--gold); }
 .sw.path { background: var(--teal); }
-.sw.wormhole { background: #9a7fd0; }
-.sw.travel { background: #5a6673; }
+/* these two match what nodeColor() paints, not the identity colours */
+.sw.wormhole { background: #6d5a91; }
+.sw.travel { background: #2e363e; }
 .sw.blocked { background: #8a3232; }
 #legend b { color: var(--text); font-weight: 500; }
 #legend .dim { margin-left: auto; }
