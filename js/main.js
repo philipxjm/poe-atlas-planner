@@ -1,6 +1,7 @@
 import { buildTree } from "./tree.js";
 import { CATEGORY_COLOR, nodeColor, categoryColor } from "./palette.js";
 import { parseQuery, scoreFields, MISS } from "./fuzzy.js";
+import { buildHash, parseHash } from "./share.js";
 
 const canvas = document.getElementById("tree");
 const ctx = canvas.getContext("2d");
@@ -908,22 +909,67 @@ document.getElementById("clear-picks").onclick = () => {
 document.getElementById("clear-blocks").onclick = () => {
   blockedIds.clear(); markStale(); draw();
 };
+// navigator.clipboard is undefined outside a secure context and can be refused
+// even inside one, so neither path is a given.
+function copyText(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { /* fall through */ }
+    ta.remove();
+    ok ? resolve() : reject(new Error("copy refused"));
+  });
+}
+
 document.getElementById("share").onclick = () => {
-  navigator.clipboard.writeText(location.href).then(() => toast("link copied"));
+  writeHash(); // the URL is already current, but a share must never copy a stale one
+  const n = picked.size, b = blockedIds.size;
+  const what = !n && !b ? "empty plan"
+    : `${n} pick${n === 1 ? "" : "s"}${b ? `, ${b} blocked` : ""}`;
+  copyText(location.href).then(
+    () => toast(`link copied — ${what}`),
+    () => toast("couldn't copy — the URL bar has the link"),
+  );
 };
 document.getElementById("fit").onclick = () => { fitView(); draw(); };
 
+function currentHash() {
+  return buildHash([...picked], [...blockedIds]);
+}
 function writeHash() {
-  const s = [...picked].join(".");
-  const b = [...blockedIds].join(".");
-  history.replaceState(null, "", `#s=${s}&b=${b}`);
+  const h = currentHash();
+  // With nothing picked there is nothing to say, so leave the URL clean rather
+  // than dirtying a fresh load with an empty fragment.
+  history.replaceState(null, "", h || location.pathname + location.search);
 }
 function readHash() {
-  const m = location.hash.match(/s=([^&]*)/);
-  const mb = location.hash.match(/b=([^&]*)/);
-  if (m && m[1]) for (const id of m[1].split(".")) if (T.nodes.has(id)) picked.add(id);
-  if (mb && mb[1]) for (const id of mb[1].split(".")) if (T.nodes.has(id)) blockedIds.add(id);
+  const st = parseHash(location.hash);
+  if (!st) return false;
+  // A node the current tree has never heard of is dropped, not fatal: that is
+  // what a link from an older patch looks like.
+  for (const id of st.picks) if (T.nodes.has(id)) picked.add(id);
+  for (const id of st.blocks) if (T.nodes.has(id)) blockedIds.add(id);
+  return true;
 }
+
+// Back/forward, or a plan pasted into the address bar of a tab that already has
+// one. replaceState doesn't fire this, but comparing anyway is cheaper than
+// reasoning about which writes are ours.
+window.addEventListener("hashchange", () => {
+  if (!T || location.hash === currentHash()) return;
+  picked.clear();
+  blockedIds.clear();
+  readHash();
+  markStale();
+  if (picked.size) solveNow();
+  draw();
+});
 
 let toastTimer = 0;
 function toast(msg) {

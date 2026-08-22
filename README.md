@@ -5,7 +5,8 @@ you want, and it computes the minimum-point connected tree that reaches all of t
 
 - **Left-click** a node to pick it (gold), then **Find Path** to solve for every pick at once.
 - **Right-click** a node to block it — the path must route around it. Right-click again to unblock.
-- **Drag** to pan, **wheel** to zoom, **Share link** copies a URL encoding your picks and blocks.
+- **Drag** to pan, **wheel** to zoom, **Share link** copies a URL that carries the whole plan.
+  Anyone opening it lands on your picks and blocks, already solved; back and forward work.
 - **Search** (`/` or ctrl-F) fuzzy-matches node names, mechanic names and stat text at once.
   Matches take a magenta ring, **Enter** walks them best-first (shift-Enter backwards), and
   any line of the computed bonuses the query hits lights up in the panel.
@@ -106,6 +107,21 @@ point cost first and only spends what's left on staying on a ring. Over 40 rando
 sets that trims ring changes from 1719 to 1656 while changing no cost at all. To see
 it, pick Fecund Colony and Broken Border — 21 points either way, but the path follows
 the wheel instead of dipping through its middle.
+
+A plan lives entirely in the URL fragment, so sharing one needs no server and no
+account. `js/share.js` sorts the picked and blocked ids, delta-codes them, varints the
+deltas and base64url's the result — sorting is free, since a set of picks has no order,
+and it is what makes the deltas small enough to be worth varinting. A 120-pick plan is
+310 characters where the first, dot-separated format took 753; every notable in the game
+is 589 characters of URL, which survives a chat client intact.
+
+Ids, though, not indices into the node list. Indices pack smaller — 1029 nodes is 10
+bits against a varint's 16-plus — but they only mean anything against the exact data
+file that produced them. Drop in a new patch's `atlas.json` and every index past the
+first inserted node shifts by one, so an old link still decodes, still looks like a
+plan, and quietly points at the wrong passives. Ids can only fail honestly: one the
+tree has never heard of is skipped. That is worth the extra ~130 characters. Links
+written in the old format still load, and upgrade themselves in place on arrival.
 
 Tree data is the official GGG export from
 [grindinggear/atlastree-export](https://github.com/grindinggear/atlastree-export)
