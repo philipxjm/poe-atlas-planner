@@ -138,7 +138,7 @@ function updateHud() {
   if (stale) {
     ptsEl.textContent = `${picked.size} pick${picked.size === 1 ? "" : "s"}`;
     ptsEl.classList.remove("over");
-    statusEl.textContent = picked.size ? "press Find Path" : "click nodes to pick · right-click to block";
+    statusEl.textContent = picked.size ? "press Find Path" : "click nodes to pick";
     statusEl.className = "";
     return;
   }
@@ -150,7 +150,7 @@ function updateHud() {
     statusEl.textContent = `${result.unreachable.size} pick(s) unreachable — blocked off`;
     statusEl.className = "bad";
   } else if (picked.size === 0) {
-    statusEl.textContent = "click nodes to pick · right-click to block";
+    statusEl.textContent = "click nodes to pick";
     statusEl.className = "";
   } else {
     statusEl.textContent = result.optimal === true ? "✓ optimal" :

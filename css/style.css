@@ -26,7 +26,8 @@ body {
 #bar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 13px;
   padding: 10px 18px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
@@ -63,8 +64,10 @@ button {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   cursor: pointer;
+  /* the bar wraps as a row rather than breaking "Clear blocks" across two lines */
+  white-space: nowrap;
 }
 button:hover { border-color: var(--amber); }
 button.primary { color: var(--gold); border-color: var(--amber); }
@@ -79,7 +82,7 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
   margin-right: -4px;
 }
 #search {
-  width: 220px;
+  width: 186px;
   font: inherit;
   font-size: 0.82rem;
   color: var(--text);
@@ -233,7 +236,8 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 
 #legend {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 4px 18px;
   align-items: center;
   padding: 7px 18px;
   background: var(--panel);
@@ -260,3 +264,5 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 .sw.search { background: var(--magenta); }
 #legend b { color: var(--text); font-weight: 500; }
 #legend .dim { margin-left: auto; }
+#legend a { color: var(--amber); text-decoration: none; }
+#legend a:hover { text-decoration: underline; }
