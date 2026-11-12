@@ -141,9 +141,28 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
   left: 10px; right: 10px;
   bottom: calc(var(--legend-h, 40px) + 10px);
   max-width: none;
-  max-height: 40vh;
-  overflow: hidden;
+  /* the "choose one" notables run long, so the card scrolls rather than clips */
+  max-height: 50dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  touch-action: pan-y;
 }
+.tt-choose {
+  color: var(--amber);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+/* one option of a "choose one" notable */
+.tt-variant {
+  display: block;
+  margin-top: 3px;
+  padding-left: 9px;
+  border-left: 2px solid var(--line);
+}
+.tt-variant + br { display: none; }
 .tt-flavour {
   color: #7d8894;
   font-style: italic;
@@ -186,6 +205,9 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
   border-bottom: 1px solid rgba(43, 51, 62, 0.5);
 }
 #panel .stat.dim { color: var(--dim); }
+#panel .stat.choice b { color: var(--gold); }
+#panel .stat.choice i { color: var(--amber); font-size: 0.72rem; }
+#panel .stat.choice ul { margin: 2px 0 0 16px; color: var(--dim); }
 #panel .stat.hit {
   color: var(--magenta);
   background: rgba(255, 106, 213, 0.09);

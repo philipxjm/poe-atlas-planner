@@ -64,6 +64,12 @@ export function buildTree(raw) {
       stats: lines(n.stats),
       flavour: lines(n.flavourText),
       reminder: lines(n.reminderText),
+      // 3.30 "choose one" notables: the options are picked in game when the node
+      // is allocated, and some of these nodes have no stats of their own
+      variants: (n.variantEffects || []).map((v) => ({
+        stats: lines(v.stats),
+        reminder: lines(v.reminderText),
+      })),
       grantsPoints: n.grantedPassivePoints || 0,
       type,
       x: g.x + rad * Math.sin(a),

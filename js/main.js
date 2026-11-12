@@ -184,6 +184,7 @@ function buildHaystacks() {
       if (/^Connects to /.test(s)) continue; // gateway plumbing, not a bonus
       f.push(s.toLowerCase());
     }
+    for (const v of n.variants) for (const s of v.stats) f.push(s.toLowerCase());
     haystacks.set(n.id, f);
   }
 }
@@ -288,6 +289,7 @@ window.addEventListener("keydown", (e) => {
 
 function renderBonuses() {
   const lines = aggregateStats(result.nodes);
+  const choices = choiceNodes(result.nodes);
   // The panel aggregates stats across the whole path, so its lines are summed
   // rewrites of the node text and have to be matched in their own right. Here a
   // line is a hit only if the whole query lands in that one line.
@@ -297,13 +299,30 @@ function renderBonuses() {
     if (hit) hits++;
     return `<div class="stat${hit ? " hit" : ""}">${esc(l)}</div>`;
   }).join("");
-  bonusBtn.textContent = searchTerms && lines.length
-    ? `Bonuses (${hits} of ${lines.length})`
-    : `Bonuses (${lines.length})`;
+  // "Choose one" notables can't be summed: which option applies is decided in
+  // game. They're listed whole, under the totals.
+  const choiceHtml = choices.map((n) => {
+    const opts = n.variants.map((v) => v.stats.map((s) => s.replace(/\n/g, " ")).join("; "));
+    const hit = searchTerms
+      && scoreFields(searchTerms, [[n.name, ...n.stats, ...opts].join(" ").toLowerCase()]) !== MISS;
+    if (hit) hits++;
+    return `<div class="stat choice${hit ? " hit" : ""}"><b>${esc(n.name)}</b> <i>choose one</i>`
+      + n.stats.map((s) => `<br>${esc(s)}`).join("")
+      + `<ul>${opts.map((o) => `<li>${esc(o)}</li>`).join("")}</ul></div>`;
+  }).join("");
+  const total = lines.length + choices.length;
+  bonusBtn.textContent = searchTerms && total
+    ? `Bonuses (${hits} of ${total})`
+    : `Bonuses (${total})`;
   bonusBtn.classList.toggle("match", hits > 0);
-  panelBody.innerHTML = lines.length
-    ? html
+  panelBody.innerHTML = total
+    ? html + choiceHtml
     : `<div class="stat dim">No path computed — pick nodes and press Find Path.</div>`;
+}
+
+function choiceNodes(ids) {
+  return [...ids].map((id) => T.nodes.get(id)).filter((n) => n && n.variants.length)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function aggregateStats(ids) {
@@ -311,6 +330,7 @@ function aggregateStats(ids) {
   for (const id of ids) {
     const n = T.nodes.get(id);
     if (!n) continue;
+    if (n.variants.length) continue; // its stat line is only a lead-in to the options
     for (const line of n.stats) {
       if (/^Connects to /.test(line)) continue; // gateway plumbing, not a bonus
       const nums = [];
@@ -979,12 +999,23 @@ function showTooltip(n, px, py) {
     lines.push(`<span class="tt-cat" style="color:${categoryColor(n.category)}">${esc(n.category)}</span>`);
   }
   for (const s of n.stats) lines.push(esc(s));
+  if (n.variants.length) {
+    lines.push(`<span class="tt-choose">choose one in game</span>` + n.variants.map((v) =>
+      `<span class="tt-variant">${v.stats.map(variantText).join("<br>")}${
+        v.reminder.map((r) => `<br><i>${variantText(r)}</i>`).join("")}</span>`).join(""));
+  }
   for (const s of n.reminder) lines.push(`<i>${esc(s)}</i>`);
   for (const s of n.flavour) lines.push(`<span class="tt-flavour">${esc(s)}</span>`);
   if (n.type === "wormhole") lines.push(`<i>gateway — connects to its twin</i>`);
   if (blockedIds.has(n.id)) lines.push(`<span class="tt-blocked">BLOCKED — ${touchUI() ? "long-press" : "right-click"} to unblock</span>`);
   else if (picked.has(n.id)) lines.push(`<span class="tt-picked">PICKED</span>`);
   placeTooltip(lines.join("<br>"), px, py);
+}
+
+// GGG hard-wraps stat text for its own tooltip width; inside an indented
+// option the text should wrap to ours instead.
+function variantText(s) {
+  return esc(s.replace(/\n/g, " "));
 }
 
 function showMasteryTooltip(m, px, py) {
