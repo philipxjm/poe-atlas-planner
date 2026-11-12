@@ -22,6 +22,7 @@
     <input id="search" type="search" placeholder="Search nodes &amp; bonuses" autocomplete="off" spellcheck="false" aria-label="Search nodes and bonuses">
     <span id="search-n"></span>
   </div>
+  <div id="actions">
   <button id="solve" class="primary">Find Path</button>
   <button id="mechanics">Mechanics</button>
   <button id="bonuses">Bonuses (0)</button>
@@ -29,6 +30,7 @@
   <button id="clear-picks">Clear picks</button>
   <button id="clear-blocks">Clear blocks</button>
   <button id="share">Share link</button>
+  </div>
 </header>
 <canvas id="tree"></canvas>
 <aside id="key" class="hidden"></aside>
@@ -42,11 +44,12 @@
   <span><i class="sw picked"></i>picked</span>
   <span><i class="sw path"></i>path</span>
   <span><i class="sw blocked"></i>blocked</span>
-  <span><i class="sw wormhole"></i>gateway</span>
-  <span><i class="sw travel"></i>travel</span>
-  <span><i class="sw search"></i>search hit</span>
-  <span>node colour = mechanic <b>(Mechanics for the key)</b></span>
-  <span class="dim">left-click pick · right-click block · click wheel-center: highlight clusters · <b>/</b> search, <b>Enter</b> to walk matches</span>
+  <span class="wide-only"><i class="sw wormhole"></i>gateway</span>
+  <span class="wide-only"><i class="sw travel"></i>travel</span>
+  <span class="wide-only"><i class="sw search"></i>search hit</span>
+  <span class="wide-only">node colour = mechanic <b>(Mechanics for the key)</b></span>
+  <span class="dim hint-mouse">left-click pick · right-click block · click wheel-center: highlight clusters · <b>/</b> search, <b>Enter</b> to walk matches</span>
+  <span class="dim hint-touch"><b>tap</b> pick · <b>long-press</b> block · <b>pinch</b> zoom · tap a wheel centre to highlight its clusters</span>
   <span><a href="https://github.com/philipxjm/poe-atlas-planner" rel="noopener">source</a> · <a href="/">more tools</a></span>
 </footer>
 <script type="module" src="js/main.js"></script>

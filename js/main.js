@@ -15,6 +15,13 @@ const bonusBtn = document.getElementById("bonuses");
 const searchEl = document.getElementById("search");
 const searchNEl = document.getElementById("search-n");
 
+// A phone has no hover and no right button: a tap picks and shows the node's
+// card, a long press blocks. Decided per pointer, so a touch laptop gets both.
+const coarse = matchMedia("(pointer: coarse)");
+let lastPointer = coarse.matches ? "touch" : "mouse";
+const touchUI = () => lastPointer !== "mouse";
+const narrow = () => innerWidth <= 640;
+
 let T = null;
 let view = { s: 0.1, x: 0, y: 0 };
 let hover = null;          // node record
@@ -139,7 +146,7 @@ function updateHud() {
   if (stale) {
     ptsEl.textContent = `${picked.size} pick${picked.size === 1 ? "" : "s"}`;
     ptsEl.classList.remove("over");
-    statusEl.textContent = picked.size ? "press Find Path" : "click nodes to pick";
+    statusEl.textContent = picked.size ? "press Find Path" : `${touchUI() ? "tap" : "click"} nodes to pick`;
     statusEl.className = "";
     return;
   }
@@ -151,7 +158,7 @@ function updateHud() {
     statusEl.textContent = `${result.unreachable.size} pick(s) unreachable — blocked off`;
     statusEl.className = "bad";
   } else if (picked.size === 0) {
-    statusEl.textContent = "click nodes to pick";
+    statusEl.textContent = `${touchUI() ? "tap" : "click"} nodes to pick`;
     statusEl.className = "";
   } else {
     statusEl.textContent = result.optimal === true ? "✓ optimal" :
@@ -225,6 +232,7 @@ function gotoMatch(step) {
   view.s = s;
   updateSearchHud();
   draw();
+  if (touchUI()) showTooltip(n);
 }
 
 // The match rings breathe, which is what makes them findable when the query lights
@@ -252,8 +260,15 @@ function pulse() {
 }
 
 searchEl.addEventListener("input", () => runSearch(searchEl.value));
+// the counter doubles as "next match", which is all a phone has instead of Enter
+searchNEl.addEventListener("click", () => gotoMatch(1));
 searchEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    gotoMatch(e.shiftKey ? -1 : 1);
+    // a phone keyboard covers half the tree; the counter steps on from here
+    if (coarse.matches) searchEl.blur();
+  }
   else if (e.key === "Escape") { searchEl.value = ""; runSearch(""); searchEl.blur(); }
 });
 
@@ -324,6 +339,8 @@ function fmtNum(v) {
 
 bonusBtn.onclick = () => {
   panelEl.classList.toggle("hidden");
+  // on a phone both panels are bottom sheets in the same spot
+  if (narrow() && !panelEl.classList.contains("hidden")) { keyEl.classList.add("hidden"); hideTooltip(); }
 };
 
 // ---------------------------------------------------------------- mechanics index
@@ -360,6 +377,7 @@ function syncKeySelection() {
 
 keyBtn.onclick = () => {
   keyEl.classList.toggle("hidden");
+  if (narrow() && !keyEl.classList.contains("hidden")) { panelEl.classList.add("hidden"); hideTooltip(); }
 };
 
 // ---------------------------------------------------------------- view/draw
@@ -375,6 +393,9 @@ function fitView() {
 }
 
 function resize() {
+  // the cards and sheets that dock at the bottom sit just above the legend
+  const legend = document.getElementById("legend");
+  document.documentElement.style.setProperty("--legend-h", legend.offsetHeight + "px");
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(canvas.clientHeight * dpr);
@@ -782,7 +803,8 @@ function nodeAt(px, py) {
 
 function masterySize() {
   // world-units icon size with a ~32px on-screen floor for at-a-glance reading
-  return Math.max(150, 32 / view.s);
+  // (22px on a phone, where 32 would bury the whole fitted tree under icons)
+  return Math.max(150, (narrow() ? 22 : 32) / view.s);
 }
 
 function masteryAt(px, py) {
@@ -799,17 +821,80 @@ function masteryAt(px, py) {
 // ---------------------------------------------------------------- input
 
 let dragging = false, moved = false, lastX = 0, lastY = 0;
+const pointers = new Map(); // pointerId -> {x, y}, for pinch
+let pinch = null;           // {d, mx, my} of the two fingers last frame
+let gesture = false;        // a pinch happened: the lift that ends it is no tap
+let pressTimer = 0, pressed = false;
+const LONG_PRESS = 450;
+
+function zoomAt(cx, cy, f) {
+  const ns = Math.min(3, Math.max(0.02, view.s * f));
+  const k = ns / view.s;
+  view.x = cx - k * (cx - view.x);
+  view.y = cy - k * (cy - view.y);
+  view.s = ns;
+}
+
+function pinchState() {
+  const [a, b] = [...pointers.values()];
+  const r = canvas.getBoundingClientRect();
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2 - r.left, my: (a.y + b.y) / 2 - r.top };
+}
+
+function toggleBlock(n) {
+  if (!n || n.type === "root") return false;
+  if (blockedIds.has(n.id)) blockedIds.delete(n.id);
+  else { blockedIds.add(n.id); picked.delete(n.id); }
+  markStale(); draw();
+  return true;
+}
+
+function hideTooltip() { tooltip.style.display = "none"; }
 
 canvas.addEventListener("pointerdown", (e) => {
-  dragging = true; moved = false;
-  lastX = e.clientX; lastY = e.clientY;
+  lastPointer = e.pointerType;
+  // The first finger down is the primary one: anything still in the map is a
+  // finger whose lift never arrived, and would turn every later tap into a pinch.
+  if (e.isPrimary) pointers.clear();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
+  clearTimeout(pressTimer);
+  if (pointers.size === 2) {
+    pinch = pinchState(); gesture = true; moved = true;
+    return;
+  }
+  if (pointers.size > 2) return;
+  dragging = true; moved = false; pressed = false; gesture = false;
+  lastX = e.clientX; lastY = e.clientY;
+  if (e.pointerType !== "mouse") {
+    const [px, py] = canvasXY(e);
+    pressTimer = setTimeout(() => {
+      if (moved || pointers.size !== 1) return;
+      const n = nodeAt(px, py);
+      if (!toggleBlock(n)) return;
+      pressed = true;
+      navigator.vibrate?.(15);
+      toast(blockedIds.has(n.id) ? `blocked ${n.name}` : `unblocked ${n.name}`);
+      showTooltip(n);
+    }, LONG_PRESS);
+  }
 });
 
 canvas.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size >= 2 && pinch) {
+    const p = pinchState();
+    view.x += p.mx - pinch.mx; view.y += p.my - pinch.my;
+    if (pinch.d > 0) zoomAt(p.mx, p.my, p.d / pinch.d);
+    pinch = p;
+    draw();
+    return;
+  }
   if (dragging) {
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
-    if (Math.hypot(dx, dy) > 3 || moved) {
+    // a fingertip wobbles more than a mouse, so a tap tolerates more slop
+    if (Math.hypot(dx, dy) > (e.pointerType === "mouse" ? 3 : 10) || moved) {
+      if (!moved) { clearTimeout(pressTimer); if (e.pointerType !== "mouse") hideTooltip(); }
       moved = true;
       view.x += dx; view.y += dy;
       lastX = e.clientX; lastY = e.clientY;
@@ -817,26 +902,50 @@ canvas.addEventListener("pointermove", (e) => {
     }
     return;
   }
+  if (e.pointerType !== "mouse") return;
   const [px, py] = canvasXY(e);
   const n = nodeAt(px, py);
   const m = n ? null : masteryAt(px, py);
   if (n !== hover || m !== hoverMastery) { hover = n; hoverMastery = m; draw(); }
   if (n) showTooltip(n, e.clientX, e.clientY);
   else if (m && m.name) showMasteryTooltip(m, e.clientX, e.clientY);
-  else tooltip.style.display = "none";
+  else hideTooltip();
 });
 
-canvas.addEventListener("pointerup", (e) => {
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  clearTimeout(pressTimer);
+  if (pointers.size) {
+    // one finger of a pinch lifted: carry on as a drag from the one left
+    pinch = null;
+    const [q] = pointers.values();
+    lastX = q.x; lastY = q.y;
+    return false;
+  }
+  pinch = null;
   dragging = false;
-  if (moved) return;
+  return !(moved || pressed || gesture);
+}
+
+canvas.addEventListener("pointercancel", endPointer);
+
+canvas.addEventListener("pointerup", (e) => {
+  if (!endPointer(e)) return;
+  const touch = e.pointerType !== "mouse";
   const [px, py] = canvasXY(e);
   const n = nodeAt(px, py);
   if (n) {
     if (e.button !== 0 || n.type === "root") return;
-    if (blockedIds.has(n.id)) { toast("unblock it first (right-click)"); return; }
+    if (blockedIds.has(n.id)) {
+      toast(`unblock it first (${touch ? "long-press" : "right-click"})`);
+      if (touch) showTooltip(n);
+      return;
+    }
     if (picked.has(n.id)) picked.delete(n.id);
     else picked.add(n.id);
     markStale(); draw();
+    // no hover on a phone: the tap is the only chance to read what was picked
+    if (touch) showTooltip(n);
     return;
   }
   const m = masteryAt(px, py);
@@ -844,27 +953,23 @@ canvas.addEventListener("pointerup", (e) => {
     highlightName = highlightName === m.name ? null : m.name;
     syncKeySelection();
     draw();
+    if (touch) showMasteryTooltip(m);
+    return;
   }
+  if (touch) hideTooltip();
 });
 
 canvas.addEventListener("contextmenu", (e) => {
   e.preventDefault();
-  const n = nodeAt(...canvasXY(e));
-  if (!n || n.type === "root") return;
-  if (blockedIds.has(n.id)) blockedIds.delete(n.id);
-  else { blockedIds.add(n.id); picked.delete(n.id); }
-  markStale(); draw();
+  // Android also fires this on a long press, which the timer already handled
+  if (lastPointer !== "mouse") return;
+  toggleBlock(nodeAt(...canvasXY(e)));
 });
 
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const [cx, cy] = canvasXY(e);
-  const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-  const ns = Math.min(3, Math.max(0.02, view.s * f));
-  const k = ns / view.s;
-  view.x = cx - k * (cx - view.x);
-  view.y = cy - k * (cy - view.y);
-  view.s = ns;
+  zoomAt(cx, cy, e.deltaY < 0 ? 1.15 : 1 / 1.15);
   draw();
 }, { passive: false });
 
@@ -877,17 +982,29 @@ function showTooltip(n, px, py) {
   for (const s of n.reminder) lines.push(`<i>${esc(s)}</i>`);
   for (const s of n.flavour) lines.push(`<span class="tt-flavour">${esc(s)}</span>`);
   if (n.type === "wormhole") lines.push(`<i>gateway — connects to its twin</i>`);
-  if (blockedIds.has(n.id)) lines.push(`<span class="tt-blocked">BLOCKED — right-click to unblock</span>`);
+  if (blockedIds.has(n.id)) lines.push(`<span class="tt-blocked">BLOCKED — ${touchUI() ? "long-press" : "right-click"} to unblock</span>`);
+  else if (picked.has(n.id)) lines.push(`<span class="tt-picked">PICKED</span>`);
   placeTooltip(lines.join("<br>"), px, py);
 }
 
 function showMasteryTooltip(m, px, py) {
-  placeTooltip(`<b>${esc(m.name)}</b><br><i>click to highlight all ${esc(m.name)} clusters</i>`, px, py);
+  const verb = touchUI() ? "tap" : "click";
+  placeTooltip(`<b>${esc(m.name)}</b><br><i>${verb} to ${highlightName === m.name && touchUI() ? "clear the highlight" : `highlight all ${esc(m.name)} clusters`}</i>`, px, py);
 }
 
 function placeTooltip(html, px, py) {
   tooltip.innerHTML = html;
   tooltip.style.display = "block";
+  // Without a cursor to follow it docks as a card along the bottom, where a
+  // finger isn't covering it.
+  const card = px == null;
+  tooltip.classList.toggle("card", card);
+  if (card) {
+    tooltip.style.left = tooltip.style.top = "";
+    // a sheet sits in the same spot; touching the tree means you're back on it
+    if (narrow()) { panelEl.classList.add("hidden"); keyEl.classList.add("hidden"); }
+    return;
+  }
   const pad = 14;
   let x = px + pad, y = py + pad;
   if (x + tooltip.offsetWidth > innerWidth) x = px - tooltip.offsetWidth - pad;

@@ -6,6 +6,9 @@ you want, and it computes the minimum-point connected tree that reaches all of t
 - **Left-click** a node to pick it (gold), then **Find Path** to solve for every pick at once.
 - **Right-click** a node to block it — the path must route around it. Right-click again to unblock.
 - **Drag** to pan, **wheel** to zoom, **Share link** copies a URL that carries the whole plan.
+- **On a phone:** tap to pick (the node's text shows in a card at the bottom), long-press
+  to block, pinch to zoom. The panels open as bottom sheets, the buttons scroll sideways,
+  and tapping the search counter steps to the next match, in place of Enter.
   Anyone opening it lands on your picks and blocks, already solved; back and forward work.
 - **Search** (`/` or ctrl-F) fuzzy-matches node names, mechanic names and stat text at once.
   Matches take a magenta ring, **Enter** walks them best-first (shift-Enter backwards), and

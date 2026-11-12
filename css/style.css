@@ -14,6 +14,8 @@
 * { box-sizing: border-box; margin: 0; }
 
 html, body { height: 100%; overflow: hidden; }
+/* the phone's collapsing URL bar makes 100% taller than what is on screen */
+body { height: 100dvh; }
 
 body {
   background: var(--bg);
@@ -24,6 +26,7 @@ body {
 }
 
 #bar {
+  touch-action: manipulation;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -68,8 +71,12 @@ button {
   cursor: pointer;
   /* the bar wraps as a row rather than breaking "Clear blocks" across two lines */
   white-space: nowrap;
+  /* no double-tap zoom on a phone, which also stops it holding back (or eating)
+     a tap that lands soon after another touch */
+  touch-action: manipulation;
 }
-button:hover { border-color: var(--amber); }
+/* a phone keeps :hover on whatever was tapped last, so only real pointers get it */
+@media (hover: hover) { button:hover { border-color: var(--amber); } }
 button.primary { color: var(--gold); border-color: var(--amber); }
 /* the bonuses panel is closed by default, so a search hitting a line inside it
    has to announce itself on the button */
@@ -102,8 +109,14 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
   min-width: 44px;
 }
 #search-n.none { color: var(--dim); }
+#search-n:not(:empty):not(.none) { cursor: pointer; }
 
-#tree { flex: 1; width: 100%; cursor: grab; touch-action: none; }
+/* desktop: the buttons sit in the bar as if the wrapper weren't there */
+#actions { display: contents; }
+
+/* min-height 0: a flex item won't shrink below its content, and a canvas's
+   content is its own pixel size, so without it the legend is pushed off-screen */
+#tree { flex: 1; min-height: 0; width: 100%; cursor: grab; touch-action: none; }
 #tree:active { cursor: grabbing; }
 
 #tooltip {
@@ -122,6 +135,15 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 #tooltip b { color: var(--gold); }
 #tooltip i { color: var(--dim); }
 .tt-blocked { color: var(--red); font-weight: 600; }
+.tt-picked { color: var(--gold); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.08em; }
+/* no cursor to follow: dock along the bottom, clear of the finger */
+#tooltip.card {
+  left: 10px; right: 10px;
+  bottom: calc(var(--legend-h, 40px) + 10px);
+  max-width: none;
+  max-height: 40vh;
+  overflow: hidden;
+}
 .tt-flavour {
   color: #7d8894;
   font-style: italic;
@@ -266,3 +288,58 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 #legend .dim { margin-left: auto; }
 #legend a { color: var(--amber); text-decoration: none; }
 #legend a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- touch, phones */
+
+.hint-touch { display: none; }
+@media (pointer: coarse) {
+  .hint-mouse { display: none; }
+  .hint-touch { display: inline; }
+}
+
+@media (max-width: 640px) {
+  #bar { gap: 7px 8px; padding: 8px 10px; }
+  #bar h1 { font-size: 0.92rem; }
+  #points { font-size: 0.85rem; padding: 2px 9px; }
+  #status { font-size: 0.75rem; }
+  .spacer { display: none; }
+
+  #search-wrap { flex: 1 1 100%; order: 5; margin-right: 0; }
+  /* under 16px iOS zooms the whole page in on focus */
+  #search { flex: 1; width: auto; font-size: 16px; padding: 7px 11px; }
+  #search-n { padding: 6px 2px; text-align: center; }
+
+  /* one row of buttons that scrolls sideways, instead of four rows of them */
+  #actions {
+    display: flex;
+    order: 6;
+    flex: 1 1 100%;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -10px;
+    padding: 0 10px;
+  }
+  #actions::-webkit-scrollbar { display: none; }
+  #actions button { flex: none; font-size: 0.74rem; padding: 8px 11px; }
+
+  /* the two panels become bottom sheets (one at a time, see main.js) */
+  #panel, #key {
+    top: auto;
+    left: 8px; right: 8px;
+    bottom: calc(var(--legend-h, 40px) + 8px);
+    width: auto;
+    max-height: 52dvh;
+  }
+
+  #legend { gap: 3px 12px; padding: 6px 10px; font-size: 0.7rem; }
+  #legend .wide-only { display: none; }
+  #legend .hint-touch b { font-weight: 600; }
+  #legend .dim { margin-left: 0; flex-basis: 100%; }
+  #toast { bottom: calc(var(--legend-h, 40px) + 16px); max-width: calc(100vw - 32px); }
+}
+
+/* a phone on its side: the legend would cost an eighth of the little height there is */
+@media (max-height: 480px) {
+  #legend { display: none; }
+}
