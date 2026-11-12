@@ -1,6 +1,6 @@
 # PoE Atlas Planner
 
-Path of Exile atlas passive tree planner (3.29 data): pick the notables and keystones
+Path of Exile atlas passive tree planner (3.30 data): pick the notables and keystones
 you want, and it computes the minimum-point connected tree that reaches all of them.
 
 - **Left-click** a node to pick it (gold), then **Find Path** to solve for every pick at once.
@@ -126,7 +126,7 @@ written in the old format still load, and upgrade themselves in place on arrival
 Tree data is the official GGG export from
 [grindinggear/atlastree-export](https://github.com/grindinggear/atlastree-export)
 (vendored in `data/atlas.json`). To update for a new patch, replace that file with
-the new `data.json` from the repo, and refresh `img/mastery.png` from the sprite
+the new `data.json` from the repo, and refresh `img/mastery.webp` from the sprite
 URL in its `sprites.mastery` section. Mechanic icon art © Grinding Gear Games.
 
 No build step, no dependencies — serve the directory statically:

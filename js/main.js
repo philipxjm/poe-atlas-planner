@@ -60,7 +60,7 @@ const RADII = { root: 90, keystone: 70, notable: 52, wormhole: 55, small: 32 };
 let masteryCoords = null;      // icon path -> {x,y,w,h} in the sprite sheet
 const masteryImg = new Image();
 masteryImg.onload = () => draw();
-masteryImg.src = "img/mastery.png";
+masteryImg.src = "img/mastery.webp";
 
 fetch("data/atlas.json")
   .then((r) => r.json())

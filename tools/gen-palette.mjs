@@ -1,7 +1,7 @@
 // Derive the mechanic palette.
 //
 // A handful of mechanics have a colour the game already taught players (Blight is
-// green, Delve is azurite blue, the Exarch is fire) — those are pinned. The rest
+// green, Breach is purple, the Exarch is fire) — those are pinned. The rest
 // are chosen by farthest-point selection over a candidate grid so every wheel
 // stays visually apart, then matched to a mechanic by whichever free colour sits
 // nearest its thematic hue hint.
@@ -42,37 +42,42 @@ const hueOf = (h) => {
 const ANCHORS = {
   "Blight":               "#4fc47a",
   "Breach":               "#c05ce6",
-  "Delve":                "#3f8fe0",
   "Delirium":             "#f0aede",
   "Bestiary":             "#e08a3c",
   "Betrayal":             "#d0455f",
-  "Harvest":              "#a8d44a",
   "The Searing Exarch":   "#f05a2f",
   "The Eater of Worlds":  "#7a3f8f",
   "The Shaper and Elder": "#c9d8e8",
   "Abyss":                "#6b4fc4",
   "Legion":               "#efe3b0",
   "Ultimatum":            "#9d9d9d",
-  "Vaal Side Areas":      "#5f9c33",
 };
 
 // Everything else: a hue the mechanic leans toward, honoured when a free colour
 // is available near it. Purely a preference — separation wins.
 const HINTS = {
+  "Atlas Anomalies":     285,
+  "Gold":                 48,
+  "Magic Monsters":      225,
+  "Mirage":               40,
+  "Rare Monsters":        58,
+  "Sacred Flora":        110,
+  "Sentinels":           195,
+  "Threads":             320,
+  "Unique Monsters":      22,
+  "Viridian Wildwood":   140,
   "Atlas Memories":      250,
   "Beyond":              310,
   "Conquerors":          220,
   "Divination Cards":     45,
   "Essence":             235,
   "Expedition":           38,
-  "Heist":               170,
   "Incursion":           150,
   "Labyrinth":            35,
   "Maps":                 30,
   "Mercenaries":          15,
   "Ritual":              345,
   "Rogue Exiles":          5,
-  "Scarabs":              50,
   "Settlers of Kalguur":  195,
   "Shrines":              185,
   "Strongboxes":          25,
@@ -98,9 +103,12 @@ for (let h = 0; h < 360; h += 4)
 
 // One pass per mechanic, in hint order: take the candidate with the best
 // trade-off between staying clear of every colour already chosen and honouring
-// the mechanic's hue. HUE_COST sets the exchange rate — 0.35 means a 30° hue
-// compromise is worth about 10 ΔE of extra separation.
-const HUE_COST = 0.35;
+// the mechanic's hue. HUE_COST sets the exchange rate — 0.175 means a 30° hue
+// compromise is worth about 5 ΔE of extra separation. It was 0.35 for 3.29's 33
+// mechanics; with 3.30's 38 that left pairs under check-palette's bars. The greedy
+// pass is not monotonic in this value, so after a change, sweep it and keep one
+// that passes both checks.
+const HUE_COST = 0.175;
 const hueErr = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 
 const chosen = Object.values(ANCHORS).map((h) => ({ lab: labOf(rgbOf(h)) }));
