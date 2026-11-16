@@ -70,6 +70,9 @@ node L\* 65.0, dimmest selected L\* 76.3, worst-case ΔE 32.8.
 The optimizer solves the Steiner tree problem on the atlas graph in a web worker, and
 every answer is the true optimum — badged "✓ optimal" — however many nodes you pick.
 Blocked-off picks are reported as unreachable rather than silently dropped.
+`node tools/check-solver.mjs` confirms the exact phase still fits a new tree: a patch that
+makes the atlas denser can push it past what the solver encodes, and then nothing breaks —
+answers past ten picks just stop being exact.
 
 Getting there needed a different algorithm. Dreyfus–Wagner is exact but costs 3^k in
 the number of picks, so it was capped at 10 and everything past that fell back to

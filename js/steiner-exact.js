@@ -3,9 +3,9 @@
 // Dreyfus-Wagner costs 3^k in the number of picks, which is why it was capped at
 // 10 and everything beyond fell back to a heuristic. This does not depend on the
 // number of picks at all. It is exponential in the graph's *treewidth* instead,
-// and the atlas is a sparse thing built from rings joined by corridors: its
-// treewidth is 7, and 858 of its 903 bags hold two or three nodes. So 40 picks
-// cost the same as 4.
+// and the atlas is a sparse thing built from rings joined by corridors: on the
+// 3.30 tree the widest bag holds nine nodes, and more than nine bags in ten hold
+// two or three. So 40 picks cost the same as 4.
 //
 // The decomposition depends only on which nodes are blocked, not on what is
 // picked, so it is built once and reused across solves.
@@ -18,6 +18,13 @@
 // far. Base MAX_BAG+1 keeps a whole bag in one 31-bit int, so states are plain
 // map keys and the join loop stays arithmetic.
 const MAX_BAG = 9;
+
+// How many elimination orders to try before giving up on a decomposition.
+const ORDER_TRIES = 16;
+
+// Bits set in each bag-sized mask.
+const POP = new Uint8Array(1 << MAX_BAG);
+for (let i = 1; i < POP.length; i++) POP[i] = POP[i >> 1] + (i & 1);
 
 function encodeLabels(labels, len, base) {
   let code = 0;
@@ -53,26 +60,33 @@ function canonicalize(labels, len) {
 // fewest new edges keeps the bags small, which is the whole ball game here.
 // `last` is eliminated at the very end so its bag is a lone node — that gives the
 // DP a root to finish at, and is why the atlas start is passed in as `last`.
-function minFillOrder(verts, adj, last) {
+//
+// Ties are common, and how they fall decides the width. With `seed` 0 the first
+// candidate wins; any other seed breaks exact ties at random, reproducibly.
+function minFillOrder(verts, adj, last, seed = 0) {
   const g = new Map();
   for (const v of verts) g.set(v, new Set(adj.get(v)));
   const remaining = new Set(verts);
   remaining.delete(last);
   const order = [];
   const bags = new Map();
+  let rng = seed >>> 0;
 
   while (remaining.size) {
-    let best = -1, bestFill = Infinity, bestDeg = Infinity;
+    let best = -1, bestFill = Infinity, bestDeg = Infinity, bestTie = 0;
     for (const v of remaining) {
       const nb = g.get(v);
-      if (nb.size > bestFill) continue; // fill is never below zero, so size bounds it
+      if (bestFill === 0 && nb.size > bestDeg) continue; // zero fill can only be tied
       let fill = 0;
       const arr = [...nb];
       for (let i = 0; i < arr.length && fill <= bestFill; i++)
         for (let j = i + 1; j < arr.length; j++)
           if (!g.get(arr[i]).has(arr[j])) fill++;
-      if (fill < bestFill || (fill === bestFill && nb.size < bestDeg)) {
-        best = v; bestFill = fill; bestDeg = nb.size;
+      let tie = 0;
+      if (seed) { rng = (rng * 1664525 + 1013904223) >>> 0; tie = rng; }
+      if (fill < bestFill || (fill === bestFill
+          && (nb.size < bestDeg || (nb.size === bestDeg && tie < bestTie)))) {
+        best = v; bestFill = fill; bestDeg = nb.size; bestTie = tie;
       }
     }
     const nb = [...g.get(best)];
@@ -119,7 +133,11 @@ export function buildDecomposition(N, offsets, neighbors, blockedMask, rootIdx) 
     adj.set(v, s);
   }
 
-  const elim = minFillOrder(verts, adj, rootIdx);
+  // The plain pass is not always narrow enough: on the 3.30 atlas it ends with one
+  // bag of ten, one more than a state can encode, while about four shuffled passes
+  // in ten stay at nine. A pass is ~30 ms and this runs once per set of blocks.
+  let elim = null;
+  for (let seed = 0; seed < ORDER_TRIES && !elim; seed++) elim = minFillOrder(verts, adj, rootIdx, seed);
   if (!elim) return null;
   const { order, bags } = elim;
 
@@ -220,9 +238,7 @@ export function solveExact(td, terminalMask, deadlineMs, ring = null) {
   const cost = new Array(nodes.length);
   const back = new Array(nodes.length);
   const la = new Int32Array(MAX_BAG), lb = new Int32Array(MAX_BAG), lc = new Int32Array(MAX_BAG);
-  const uf = new Int32Array(MAX_BAG);
-  const firstA = new Int32Array(MAX_BAG + 2), firstB = new Int32Array(MAX_BAG + 2);
-  const find = (x) => { while (uf[x] !== x) { uf[x] = uf[uf[x]]; x = uf[x]; } return x; };
+  const comps = new Int32Array(MAX_BAG);
 
   // A table is only read by its parent, so it can be dropped once that parent has
   // run. Without this the whole DP is held in memory at once, which on a 900-node
@@ -308,20 +324,19 @@ export function solveExact(td, terminalMask, deadlineMs, ring = null) {
       release(n.child);
     } else {
       // JOIN. Two branches can only be glued where they agree on which nodes are
-      // in; group by that first so the pair loop stays small.
+      // in; group by that first so the pair loop stays small. Each state keeps its
+      // blocks as bitmasks over the bag, which is what the pair loop works in.
       const bucket = (table) => {
         const groups = new Map();
         for (const [code, c] of table) {
           decodeLabels(code, m, base, la);
           let mask = 0, blocks = 0;
-          const lab = new Int32Array(m);
-          for (let i = 0; i < m; i++) {
-            lab[i] = la[i];
-            if (la[i]) { mask |= 1 << i; if (la[i] > blocks) blocks = la[i]; }
-          }
+          for (let i = 0; i < m; i++) if (la[i]) { mask |= 1 << i; if (la[i] > blocks) blocks = la[i]; }
+          const bm = new Int32Array(blocks);
+          for (let i = 0; i < m; i++) if (la[i]) bm[la[i] - 1] |= 1 << i;
           let g = groups.get(mask);
           if (!g) groups.set(mask, (g = []));
-          g.push({ code, c, lab, blocks });
+          g.push({ code, c, bm, blocks });
         }
         return groups;
       };
@@ -330,33 +345,50 @@ export function solveExact(td, terminalMask, deadlineMs, ring = null) {
       for (const [mask, listA] of groupsA) {
         const listB = groupsB.get(mask);
         if (!listB) continue;
-        let size = 0;
-        for (let i = 0; i < m; i++) if (mask & (1 << i)) size++;
+        const size = POP[mask];
+        // Gluing two forests along shared nodes leaves `A.blocks + B.blocks - size`
+        // components if it stays a forest, and at least one always survives — so a
+        // B with too few blocks for this A is out on arithmetic, and with B sorted
+        // by block count so is every B after it.
+        listB.sort((x, y) => y.blocks - x.blocks);
         for (const A of listA) {
-          for (const B of listB) {
+          const am = A.bm, an = A.blocks;
+          const fewest = size ? size + 1 - an : 0;
+          pairs: for (const B of listB) {
+            const bn = B.blocks;
+            if (bn < fewest) break;
             if (overdue()) return null;
-            // Gluing two forests along shared nodes stays a forest exactly when
-            // the block counts add up; otherwise the two branches meet twice and
-            // close a loop. That needs exactly `A.blocks + B.blocks - size`
-            // components to survive the merge, and a merge can never leave more
-            // than either side started with — so most pairs die on arithmetic
-            // before the union-find is touched.
-            const need = A.blocks + B.blocks - size;
-            if (need > A.blocks || need > B.blocks) continue;
-            for (let i = 0; i < m; i++) uf[i] = i;
-            firstA.fill(-1); firstB.fill(-1);
-            const pa = A.lab, pb = B.lab;
-            for (let i = 0; i < m; i++) {
-              if (!pa[i]) continue;
-              if (firstA[pa[i]] < 0) firstA[pa[i]] = i; else uf[find(i)] = find(firstA[pa[i]]);
-              if (firstB[pb[i]] < 0) firstB[pb[i]] = i; else uf[find(i)] = find(firstB[pb[i]]);
+            // Start from A's components and lay B's blocks over them one at a time.
+            // A block joins up every component it touches; if two of its nodes are
+            // already in the same one, the branches meet twice and close a loop.
+            let nc = an;
+            for (let i = 0; i < an; i++) comps[i] = am[i];
+            const bmB = B.bm;
+            for (let j = 0; j < bn; j++) {
+              const blk = bmB[j];
+              if ((blk & (blk - 1)) === 0) continue; // a lone node links nothing
+              let merged = 0, hit = 0, w = 0;
+              for (let i = 0; i < nc; i++) {
+                const comp = comps[i];
+                if (comp & blk) { merged |= comp; hit++; } else comps[w++] = comp;
+              }
+              if (hit !== POP[blk]) continue pairs;
+              comps[w++] = merged;
+              nc = w;
             }
-            let merged = 0;
-            for (let i = 0; i < m; i++) if (mask & (1 << i) && find(i) === i) merged++;
-            if (merged !== need) continue;
-            for (let i = 0; i < m; i++) lc[i] = pa[i] ? find(i) + 1 : 0;
-            canonicalize(lc, m);
-            put(encodeLabels(lc, m, base), A.c + B.c, { a: A.code, b: B.code });
+            // Number the components in the order they first appear: canonical form.
+            let next = 0;
+            lc.fill(0, 0, m);
+            for (let i = 0; i < m; i++) {
+              if (!(mask & (1 << i)) || lc[i]) continue;
+              next++;
+              let comp = 0;
+              for (let k = 0; k < nc; k++) if (comps[k] & (1 << i)) { comp = comps[k]; break; }
+              for (let t = i; t < m; t++) if (comp & (1 << t)) lc[t] = next;
+            }
+            const code = encodeLabels(lc, m, base), c = A.c + B.c;
+            const old = cur.get(code);
+            if (old === undefined || c < old) { cur.set(code, c); bp.set(code, { a: A.code, b: B.code }); }
           }
         }
       }

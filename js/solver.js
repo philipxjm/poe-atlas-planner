@@ -14,8 +14,9 @@ let N = 0, offsets = null, neighbors = null, rootIdx = -1, ring = null;
 const INF = 0x3fffffff;
 
 // How long the exact solve gets before we keep the heuristic answer instead.
-// Measured worst case on the full atlas is well under a second, so this is a
-// backstop against a pathological blocked set, not a working budget.
+// On the 3.30 atlas with nothing blocked it takes a little over a second on a
+// desktop (blocks only make it faster), so this is headroom for a slow machine,
+// not a working budget.
 const EXACT_BUDGET_MS = 5000;
 
 self.onmessage = (e) => {
