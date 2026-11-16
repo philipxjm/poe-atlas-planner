@@ -8,6 +8,17 @@ function unlink(s) {
   return String(s).replace(/\[([^\]|]+)(?:\|([^\]]+))?\]/g, (_, key, display) => display || key);
 }
 
+// Notables the two rules in strayCategory() can't place, by name.
+const STRAY_CATEGORY = {
+  "Verdant Lands": "Sacred Flora", // its icon is its own, and it sits between two wheels
+};
+
+// "Art/.../EssenceNode2.png" -> "EssenceNode": a mechanic's notables share an
+// icon set and differ only in the number.
+function iconSet(icon) {
+  return String(icon || "").split("/").pop().replace(/\d*\.\w+$/, "");
+}
+
 // stats / reminderText / flavourText are all arrays in the export.
 function lines(v) {
   return v == null ? [] : (Array.isArray(v) ? v : [v]).flat(9).map(unlink);
@@ -31,6 +42,21 @@ export function buildTree(raw) {
       groupCategory.set(n.group, n.name);
     }
   }
+
+  // A notable in a group of its own (3.30's choose-one notables hang off their
+  // wheel this way) has no mastery marker to take a mechanic from. Its icon comes
+  // from the same set as that wheel's notables, which is enough to place it — as
+  // long as only one mechanic uses the set.
+  const iconCategory = new Map(); // icon set -> mechanic, or null when shared
+  for (const n of Object.values(raw.nodes)) {
+    if (!n || typeof n !== "object" || !n.isNotable) continue;
+    const cat = groupCategory.get(n.group);
+    if (!cat) continue;
+    const set = iconSet(n.icon);
+    iconCategory.set(set, iconCategory.has(set) && iconCategory.get(set) !== cat ? null : cat);
+  }
+  const strayCategory = (n) =>
+    n.isNotable ? STRAY_CATEGORY[n.name] || iconCategory.get(iconSet(n.icon)) || null : null;
 
   for (const [key, n] of Object.entries(raw.nodes)) {
     if (!n || typeof n !== "object") continue;
@@ -60,7 +86,7 @@ export function buildTree(raw) {
     nodes.set(key, {
       id: key,
       name: unlink(n.name || "Atlas Start"),
-      category: groupCategory.get(n.group) || null,
+      category: groupCategory.get(n.group) || strayCategory(n),
       stats: lines(n.stats),
       flavour: lines(n.flavourText),
       reminder: lines(n.reminderText),

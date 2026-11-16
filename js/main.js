@@ -1,5 +1,6 @@
 import { buildTree } from "./tree.js";
 import { CATEGORY_COLOR, nodeColor, categoryColor } from "./palette.js";
+import { PRESETS, presetNodes } from "./presets.js";
 import { parseQuery, scoreFields, MISS } from "./fuzzy.js";
 import { buildHash, parseHash } from "./share.js";
 
@@ -139,6 +140,7 @@ function solveNow() {
 function markStale() {
   stale = true;
   updateHud();
+  syncKeyPicks();
 }
 
 function updateHud() {
@@ -368,24 +370,86 @@ bonusBtn.onclick = () => {
 const keyEl = document.getElementById("key");
 const keyBtn = document.getElementById("mechanics");
 
+// What each button in the panel picks: key -> { ids, label(count) }. A mechanic's
+// button takes its notables, a preset's takes whatever its rule matches.
+const pickSets = new Map();
+
 function buildKey() {
-  const counts = new Map();
-  for (const n of T.list) if (n.category) counts.set(n.category, (counts.get(n.category) || 0) + 1);
+  const notables = new Map();
+  for (const n of T.list) {
+    if (n.type !== "notable" || !n.category) continue;
+    if (!notables.has(n.category)) notables.set(n.category, []);
+    notables.get(n.category).push(n.id);
+  }
+  pickSets.clear();
+  const presetRows = PRESETS.map((p, i) => {
+    const ids = presetNodes(p, T.list).map((n) => n.id);
+    if (!ids.length) return ""; // a patch reworded the stat its rule reads
+    pickSets.set(`p${i}`, { ids, label: (c) => `${p.name}: ${c} node${c === 1 ? "" : "s"}` });
+    return `<div class="key-row preset" data-set="p${i}">` +
+      `<span class="key-name">${esc(p.name)}<small>${esc(p.about)}</small></span>` +
+      `<button class="key-pick" data-set="p${i}"></button></div>`;
+  }).join("");
+  const mechanicRows = Object.keys(CATEGORY_COLOR).sort().map((name) => {
+    const ids = notables.get(name) || [];
+    pickSets.set(`m:${name}`, { ids, label: (c) => `${c} ${name} notable${c === 1 ? "" : "s"}` });
+    return `<div class="key-row" data-name="${esc(name)}">` +
+      `<i class="key-sw" style="background:${categoryColor(name)}"></i>` +
+      `<span class="key-name">${esc(name)}</span>` +
+      `<button class="key-pick" data-set="${esc(`m:${name}`)}"></button></div>`;
+  }).join("");
   keyEl.innerHTML =
+    (presetRows ? `<h2>Presets</h2>${presetRows}` : "") +
     `<h2>Mechanics</h2>` +
-    Object.keys(CATEGORY_COLOR).sort().map((name) => {
-      const c = counts.get(name) || 0;
-      return `<div class="key-row" data-name="${esc(name)}">` +
-        `<i class="key-sw" style="background:${categoryColor(name)}"></i>` +
-        `<span class="key-name">${esc(name)}</span><span class="key-n">${c}</span></div>`;
-    }).join("");
-  keyEl.querySelectorAll(".key-row").forEach((row) => {
+    `<p class="key-hint">name: highlight its wheels · button: pick all its notables</p>` +
+    mechanicRows;
+  keyEl.querySelectorAll(".key-row[data-name]").forEach((row) => {
     row.onclick = () => {
       const name = row.dataset.name;
       highlightName = highlightName === name ? null : name;
       syncKeySelection();
       draw();
     };
+  });
+  keyEl.querySelectorAll(".key-row.preset").forEach((row) => {
+    row.onclick = () => togglePickSet(row.dataset.set);
+  });
+  keyEl.querySelectorAll(".key-pick").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation(); // the row behind it has a click of its own
+      togglePickSet(btn.dataset.set);
+    };
+  });
+  syncKeyPicks();
+}
+
+// Picks the whole set, or unpicks it if it is already all picked. Blocked nodes
+// stay blocked: a block is the more deliberate of the two marks.
+function togglePickSet(key) {
+  const set = pickSets.get(key);
+  const ids = set.ids.filter((id) => !blockedIds.has(id));
+  const skipped = set.ids.length - ids.length;
+  if (!ids.length) { toast("every node in that set is blocked"); return; }
+  const all = ids.every((id) => picked.has(id));
+  for (const id of ids) {
+    if (all) picked.delete(id);
+    else picked.add(id);
+  }
+  markStale(); draw();
+  toast(`${all ? "unpicked" : "picked"} ${set.label(ids.length)}${skipped ? ` (${skipped} blocked, skipped)` : ""}`);
+}
+
+function syncKeyPicks() {
+  keyEl.querySelectorAll(".key-pick").forEach((btn) => {
+    const set = pickSets.get(btn.dataset.set);
+    const ids = set.ids.filter((id) => !blockedIds.has(id));
+    const have = ids.filter((id) => picked.has(id)).length;
+    const all = ids.length > 0 && have === ids.length;
+    btn.textContent = all ? `✓ ${have}` : have ? `${have}/${ids.length}` : `+ ${ids.length}`;
+    btn.classList.toggle("all", all);
+    btn.classList.toggle("some", have > 0 && !all);
+    btn.disabled = !ids.length;
+    btn.title = `${all ? "Unpick" : "Pick"} ${set.label(ids.length)}`;
   });
 }
 
@@ -413,15 +477,21 @@ function fitView() {
 }
 
 function resize() {
-  // the cards and sheets that dock at the bottom sit just above the legend
+  // the cards and sheets that dock at the bottom sit just above the legend,
+  // and the side panels hang just below the bar
   const legend = document.getElementById("legend");
   document.documentElement.style.setProperty("--legend-h", legend.offsetHeight + "px");
+  document.documentElement.style.setProperty("--bar-h", bar.offsetHeight + "px");
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(canvas.clientWidth * dpr);
   canvas.height = Math.round(canvas.clientHeight * dpr);
   draw();
 }
 window.addEventListener("resize", resize);
+// the bar wraps onto a second row when the status text grows, which moves the
+// canvas and the panels without the window changing size
+const bar = document.getElementById("bar");
+new ResizeObserver(resize).observe(bar);
 
 // Two nodes on the same wheel and the same orbit are joined by an arc running
 // along that orbit — that is where the tree's curved links come from. Anything

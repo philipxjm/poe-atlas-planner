@@ -177,7 +177,7 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 
 #panel {
   position: fixed;
-  top: 58px;
+  top: calc(var(--bar-h, 46px) + 12px);
   right: 12px;
   bottom: 44px;
   width: 330px;
@@ -217,10 +217,10 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
 
 #key {
   position: fixed;
-  top: 58px;
+  top: calc(var(--bar-h, 46px) + 12px);
   left: 12px;
   bottom: 44px;
-  width: 232px;
+  width: 262px;
   background: rgba(22, 27, 34, 0.96);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -255,11 +255,35 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
   flex: none;
 }
 .key-name { flex: 1; }
-.key-n {
+#key h2:not(:first-child) { margin-top: 14px; }
+.key-hint {
   color: var(--dim);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  margin: -2px 6px 6px;
+}
+.key-row.preset { align-items: flex-start; padding: 5px 6px; }
+.key-name small {
+  display: block;
+  color: var(--dim);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  margin-top: 1px;
+}
+/* picks the row's whole set; reads "+ 8", then "3/8" or "✓ 8" as it fills */
+.key-pick {
+  flex: none;
+  min-width: 48px;
+  padding: 2px 6px;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--dim);
 }
+.key-pick.some { color: var(--gold); border-color: rgba(255, 215, 107, 0.45); }
+.key-pick.all { color: var(--bg); background: var(--gold); border-color: var(--gold); font-weight: 600; }
+.key-pick:disabled { opacity: 0.35; cursor: default; }
 
 #toast {
   position: fixed;
@@ -353,6 +377,10 @@ button.match { color: var(--magenta); border-color: var(--magenta); }
     width: auto;
     max-height: 52dvh;
   }
+
+  /* rows and their buttons big enough to hit with a thumb */
+  .key-row { padding: 5px 6px; font-size: 0.82rem; }
+  .key-pick { min-width: 58px; padding: 7px 8px; font-size: 0.76rem; }
 
   #legend { gap: 3px 12px; padding: 6px 10px; font-size: 0.7rem; }
   #legend .wide-only { display: none; }

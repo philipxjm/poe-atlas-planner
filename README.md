@@ -16,6 +16,12 @@ you want, and it computes the minimum-point connected tree that reaches all of t
 - Every node is coloured by the mechanic its wheel belongs to, smalls included — dimmer
   for smalls, brighter for keystones, grey for travel nodes that belong to no mechanic.
   **Mechanics** opens the key; clicking a row (or a wheel centre) highlights those clusters.
+- The button on each row of the key picks all of that mechanic's notables at once ("+ 8"),
+  and unpicks them when they are all picked ("✓ 8"). Above the mechanics are **presets**
+  that cut across wheels: every map modifier effect node, the map tier nodes (the Shaping
+  notables and the smalls behind them), and Destructive Play with the notables that make
+  map bosses drop Guardian, Conqueror and Synthesis Maps. Both only add ordinary picks —
+  adjust them by hand afterwards, then Find Path. Blocked nodes are left alone.
   The fills are deliberately muted so that a picked node (gold) and the solved path (teal)
   are the brightest things on screen; the key and the cluster rings keep the vivid colours.
 
@@ -66,6 +72,11 @@ apart at identity but only ~10 apart once muted — which is what the key is for
 fills ΔE 8, and every fill must be at least ΔE 20 from — and darker than — every selection
 colour. Sampling the real canvas across 40 viewports agrees with it: brightest unselected
 node L\* 65.0, dimmest selected L\* 76.3, worst-case ΔE 32.8.
+
+The presets are rules over stat text (`js/presets.js`), not lists of node ids, so they
+follow the tree across patches; `node tools/check-presets.mjs` prints what each one matches
+and fails if one has gone empty. A notable in a group of its own has no wheel to take a
+mechanic from, so `js/tree.js` places it by the icon set it shares with one.
 
 The optimizer solves the Steiner tree problem on the atlas graph in a web worker, and
 every answer is the true optimum — badged "✓ optimal" — however many nodes you pick.
