@@ -13,13 +13,15 @@ function anyStat(n, re) {
 export const PRESETS = [
   {
     name: "Map modifier effect",
-    about: "every node that increases the effect of modifiers on your Maps",
+    about: "every node that increases the effect of modifiers on your Maps, and the small nodes in those notables' wheels",
     has: (n) => anyStat(n, /increased effect of (Explicit|Prefix|Suffix) Modifiers on your Maps/),
+    wheels: true,
   },
   {
     name: "Map tiers",
-    about: "the Shaping notables and small nodes that raise the tier of Maps found",
-    has: (n) => n.category === "Maps" && anyStat(n, /Maps found have \d+% chance to become 1 tier higher/),
+    about: "the Shaping notables that raise the tier of Maps found",
+    has: (n) => n.type === "notable" && n.category === "Maps"
+      && anyStat(n, /Maps found have \d+% chance to become 1 tier higher/),
   },
   {
     name: "Destructive Play",
@@ -30,6 +32,12 @@ export const PRESETS = [
   },
 ];
 
+// With `wheels`, a preset also takes the small nodes that share a wheel with one
+// of its notables, whatever they grant.
 export function presetNodes(preset, list) {
-  return list.filter((n) => n.type !== "root" && n.type !== "wormhole" && preset.has(n));
+  const real = (n) => n.type !== "root" && n.type !== "wormhole";
+  const hits = list.filter((n) => real(n) && preset.has(n));
+  if (!preset.wheels) return hits;
+  const wheels = new Set(hits.filter((n) => n.type === "notable").map((n) => n.group));
+  return list.filter((n) => real(n) && (preset.has(n) || (n.type === "small" && wheels.has(n.group))));
 }
