@@ -109,6 +109,9 @@ export function buildTree(raw) {
       radius: rad,
       angle: a,
       adj: new Set(),
+      // links the export draws its own way: other id -> {cx, cy}, the centre of
+      // the arc it bends around, or null for one drawn straight along a ring
+      curves: new Map(),
     });
   }
 
@@ -121,6 +124,22 @@ export function buildTree(raw) {
       if (!ok || ok === rec) continue;
       rec.adj.add(String(other));
       ok.adj.add(key);
+    }
+  }
+
+  // A link normally follows the rule above: an arc along the ring when both ends
+  // share one, a straight line otherwise. `connections` lists the exceptions —
+  // the long sweeps between wheels bend around a centre that belongs to neither,
+  // and an `orbit` of 0 flattens a link that would otherwise follow its ring.
+  for (const [key, n] of Object.entries(raw.nodes)) {
+    const rec = nodes.get(key);
+    if (!rec) continue;
+    for (const c of n.connections || []) {
+      const other = nodes.get(String(c.to));
+      if (!other || !rec.adj.has(other.id)) continue;
+      const curve = c.orbit && c.orbitX != null && c.orbitY != null ? { cx: c.orbitX, cy: c.orbitY } : null;
+      rec.curves.set(other.id, curve);
+      other.curves.set(key, curve);
     }
   }
 

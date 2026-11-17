@@ -494,23 +494,29 @@ const bar = document.getElementById("bar");
 new ResizeObserver(resize).observe(bar);
 
 // Two nodes on the same wheel and the same orbit are joined by an arc running
-// along that orbit — that is where the tree's curved links come from. Anything
-// else (across wheels, or hopping orbits) is a straight line.
+// along that orbit, the short way round — that is where most of the tree's
+// curved links come from. Anything else (across wheels, or hopping orbits) is a
+// straight line, except the links the export lists itself (`curves`, see
+// tree.js): the long sweeps between wheels, which bend around a centre of their
+// own.
 //
 // Node angles are measured from straight up, canvas angles from the +x axis,
-// hence the quarter-turn. The arc takes the short way round; a link spanning
-// more than a third of the wheel is drawn straight instead, because sweeping
-// most of the way around a wheel reads as a circle rather than a connection.
-const MAX_ARC = (2 * Math.PI) / 3;
-
+// hence the quarter-turn.
 function arcBetween(a, b) {
+  const c = a.curves.get(b.id);
+  if (c === null) return null; // listed as straight
+  if (c) return arcAround(c.cx, c.cy, Math.hypot(a.x - c.cx, a.y - c.cy), Math.atan2(a.y - c.cy, a.x - c.cx),
+    Math.atan2(b.y - c.cy, b.x - c.cx));
   if (a.group !== b.group || a.orbit !== b.orbit || !a.radius) return null;
-  let d = b.angle - a.angle;
+  return arcAround(a.gx, a.gy, a.radius, a.angle - Math.PI / 2, b.angle - Math.PI / 2);
+}
+
+// The shorter way round a circle from one angle to another.
+function arcAround(cx, cy, r, from, to) {
+  let d = to - from;
   while (d > Math.PI) d -= 2 * Math.PI;
   while (d <= -Math.PI) d += 2 * Math.PI;
-  if (!d || Math.abs(d) > MAX_ARC) return null;
-  const from = a.angle - Math.PI / 2;
-  return { cx: a.gx, cy: a.gy, r: a.radius, from, to: from + d, ccw: d < 0 };
+  return d ? { cx, cy, r, from, to: from + d, ccw: d < 0 } : null;
 }
 
 // Adds one edge to the current path. arc() would draw a line from the current
