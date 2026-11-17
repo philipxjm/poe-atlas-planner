@@ -18,6 +18,11 @@ export const PRESETS = [
     wheels: true,
   },
   {
+    name: "Item rarity",
+    about: "every small node that increases the Rarity of Items found in your Maps",
+    has: (n) => anyStat(n, /increased Rarity of Items found in your Maps/),
+  },
+  {
     name: "Map tiers",
     about: "the Shaping notables that raise the tier of Maps found",
     has: (n) => n.type === "notable" && n.category === "Maps"

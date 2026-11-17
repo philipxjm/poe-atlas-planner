@@ -19,7 +19,8 @@ you want, and it computes the minimum-point connected tree that reaches all of t
 - The button on each row of the key picks all of that mechanic's notables at once ("+ 8"),
   and unpicks them when they are all picked ("✓ 8"). Above the mechanics are **presets**
   that cut across wheels: every map modifier effect node (with the small nodes in those
-  notables' wheels), the Shaping notables that raise map tier, and Destructive Play with the notables that make
+  notables' wheels), every map item rarity node, the Shaping notables that raise map tier,
+  and Destructive Play with the notables that make
   map bosses drop Guardian, Conqueror and Synthesis Maps. Both only add ordinary picks —
   adjust them by hand afterwards, then Find Path. Blocked nodes are left alone.
   The fills are deliberately muted so that a picked node (gold) and the solved path (teal)
